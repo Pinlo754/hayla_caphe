@@ -31,7 +31,7 @@ const menuItems = [
 ];
 
 export default function MobilePOS() {
-  const { cart, selectedTable, selectTable, addToCart, updateQuantity, clearCart } = usePosStore();
+  const { cart, selectedTable, selectTable, addToCart, updateQuantity, clearCart, setCart } = usePosStore();
 
   const [activeTab, setActiveTab] = useState('tables');
   const [products] = useState<any[]>(menuItems);
@@ -47,9 +47,19 @@ export default function MobilePOS() {
   const [viewingOrder, setViewingOrder] = useState<any>(null);
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [isViewOrderQRExpanded, setIsViewOrderQRExpanded] = useState(false);
+  const [editingOrderId, setEditingOrderId] = useState(null);
+
+
   const occupiedTables = orders
     .filter(o => o.status === 'pending')
     .map(o => Number(o.tableId))
+
+  const handleAddMore = (order: any) => {
+    setEditingOrderId(order.id); // Lưu ID để tí update
+    selectTable(order.tableId);
+    setCart(order.items); // Nạp đồ cũ vào giỏ
+    setActiveTab('menu');
+  };
 
   const processPaymentForOrder = async (orderId: string) => {
     setIsProcessing(true);
@@ -119,33 +129,36 @@ export default function MobilePOS() {
     if (!selectedTable || cart.length === 0) return;
     setIsProcessing(true);
 
+    const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const orderData = {
+      tableId: selectedTable,
+      items: cart,
+      totalPrice: total,
+      status: 'pending',
+      updatedAt: new Date().toISOString(),
+    };
+
     try {
-      // Logic status: Thanh toán ngay -> 'completed', Thanh toán sau -> 'pending'
-      const status = orderType === 'now' ? 'completed' : 'pending';
+      const url = editingOrderId
+        ? `${MOCK_API_URL}/orders/${editingOrderId}`
+        : `${MOCK_API_URL}/orders`;
 
-      const orderData = {
-        tableId: selectedTable,
-        items: cart,
-        totalPrice: cart.reduce((sum, item) => sum + (item.price * item.quantity), 0),
-        paymentMethod: orderType === 'now' ? paymentMethod : null, // Chỉ lưu phương thức nếu thanh toán ngay
-        status: status,
-        createdAt: new Date().toISOString(),
-      };
+      const method = editingOrderId ? 'PUT' : 'POST';
 
-      const response = await fetch(`${MOCK_API_URL}/orders`, {
-        method: 'POST',
+      const response = await fetch(url, {
+        method: method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(orderData),
+        body: JSON.stringify(editingOrderId ? { ...orderData, id: editingOrderId } : { ...orderData, createdAt: new Date().toISOString() }),
       });
 
       if (!response.ok) throw new Error('Lỗi server');
 
-      alert(orderType === 'now' ? "Thanh toán thành công!" : "Đã gửi order xuống bếp thành công!");
+      alert("Cập nhật đơn hàng thành công!");
       clearCart();
+      setEditingOrderId(null); // Reset lại
       setShowCart(false);
-      setShowQR(false);
-      setOrderType('now'); // Reset về mặc định
       setActiveTab('orders');
+      fetchOrders();
     } catch (e: any) {
       alert("Lỗi: " + e.message);
     } finally {
@@ -169,46 +182,44 @@ export default function MobilePOS() {
 
         {/* TAB 1: CHỌN BÀN (CÓ ĐÁNH DẤU ĐỎ) */}
         {activeTab === 'tables' && (
-          <div className="grid grid-cols-3 gap-3 animate-in fade-in duration-300">
+          <div className="grid grid-cols-2 gap-3 animate-in fade-in duration-300">
             {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((t) => {
-              // Tìm đơn hàng đang chờ của bàn này
               const activeOrder = orders.find(o => o.tableId === t && o.status === 'pending');
               const isOccupied = !!activeOrder;
 
               return (
-                <button
-                  key={t}
-                  onClick={() => {
-                    const activeOrder = orders.find(o => o.tableId === t && o.status === 'pending');
-                    if (activeOrder) {
-                      setViewingOrder(activeOrder);
-                      setShowOrderModal(true);
-                    } else {
-                      selectTable(t);
-                      setActiveTab('menu');
-                    }
-                  }}
-                  className={`aspect-square rounded-2xl border-2 flex flex-col items-center justify-center transition-all p-1 ${isOccupied
-                    ? 'border-red-500 bg-red-50 text-red-600'
-                    : selectedTable === t
-                      ? 'border-orange-500 bg-orange-50 text-orange-600'
-                      : 'bg-white border-transparent shadow-sm text-gray-800'
-                    }`}
-                >
-                  {/* Header Bàn */}
-                  <span className={`text-[9px] uppercase font-bold ${isOccupied ? 'text-red-400' : 'opacity-50'}`}>
-                    {isOccupied ? 'Chưa thanh toán' : 'Bàn'}
-                  </span>
-                  <span className="text-xl font-black">{t}</span>
+                <div key={t} className={`p-4 rounded-2xl border-2 transition-all ${isOccupied ? 'border-red-500 bg-red-50' : 'bg-white border-transparent shadow-sm'}`}>
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="text-xl font-black text-gray-800">Bàn {t}</div>
+                    {isOccupied && <span className="text-[6px] bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-bold">Chưa thanh toán</span>}
+                  </div>
 
-                  {/* HIỂN THỊ MÃ ĐƠN & TIỀN NẾU BÀN BẬN */}
-                  {isOccupied && (
-                    <div className="mt-1 w-full border-t border-red-200 pt-1 text-[8px] leading-tight font-bold text-red-700">
-                      <p>#{activeOrder.id.slice(-4)}</p>
-                      <p className="truncate">{activeOrder.totalPrice.toLocaleString()}đ</p>
-                    </div>
-                  )}
-                </button>
+                  <div className="flex gap-2">
+                    {isOccupied ? (
+                      <>
+                        <button
+                          onClick={() => { setViewingOrder(activeOrder); setShowOrderModal(true); }}
+                          className="flex-1 py-2 text-xs font-bold bg-white border border-red-200 text-red-600 rounded-lg"
+                        >
+                          Xem
+                        </button>
+                        <button
+                          onClick={() => handleAddMore(activeOrder)}
+                          className="flex-1 py-2 text-xs font-bold bg-red-500 text-white rounded-lg"
+                        >
+                          + Món
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        onClick={() => { selectTable(t); setActiveTab('menu'); }}
+                        className="w-full py-2 text-xs font-bold bg-orange-500 text-white rounded-lg"
+                      >
+                        Đặt món
+                      </button>
+                    )}
+                  </div>
+                </div>
               );
             })}
           </div>

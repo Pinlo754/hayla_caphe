@@ -14,6 +14,7 @@ interface PosState {
   addToCart: (product: any) => void;
   updateQuantity: (id: string, delta: number) => void;
   clearCart: () => void;
+  setCart: (items: CartItem[]) => void;
 }
 
 export const usePosStore = create<PosState>((set) => ({
@@ -37,4 +38,6 @@ export const usePosStore = create<PosState>((set) => ({
     ).filter(item => item.quantity > 0)
   })),
   clearCart: () => set({ cart: [], selectedTable: null }),
+  setCart: (items) => set({ cart: items }),
 }));
+
