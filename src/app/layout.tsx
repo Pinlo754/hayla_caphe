@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "MocNgu",
-  description: "Vietnamese stories and music for children",
+  title: "Haylacaphe",
+  description: "Hay la ca phe management system",
 };
 
 export default function RootLayout({
