@@ -48,7 +48,15 @@ export default function MobilePOS() {
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [isViewOrderQRExpanded, setIsViewOrderQRExpanded] = useState(false);
   const [editingOrderId, setEditingOrderId] = useState(null);
+  const [discountValue, setDiscountValue] = useState(0);
+  const [discountType, setDiscountType] = useState<'percent' | 'fixed'>('percent');
 
+
+  const subtotal = cart.reduce((s, i) => s + (i.price * i.quantity), 0);
+  const discountAmount = discountType === 'percent'
+    ? (subtotal * (discountValue / 100))
+    : Number(discountValue);
+  const finalTotal = Math.max(0, subtotal - discountAmount);
 
   const occupiedTables = orders
     .filter(o => o.status === 'pending')
@@ -129,11 +137,15 @@ export default function MobilePOS() {
     if (!selectedTable || cart.length === 0) return;
     setIsProcessing(true);
 
-    const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
     const orderData = {
       tableId: selectedTable,
       items: cart,
-      totalPrice: total,
+      totalPrice: finalTotal,
+      discount: discountValue > 0 ? {
+        type: discountType,
+        value: discountValue,
+        amount: discountAmount
+      } : null,
       status: 'pending',
       updatedAt: new Date().toISOString(),
     };
@@ -156,6 +168,8 @@ export default function MobilePOS() {
       alert("Cập nhật đơn hàng thành công!");
       clearCart();
       setEditingOrderId(null); // Reset lại
+      setDiscountValue(0); // Reset giảm giá
+      setDiscountType('percent');
       setShowCart(false);
       setActiveTab('orders');
       fetchOrders();
@@ -190,7 +204,7 @@ export default function MobilePOS() {
               return (
                 <div key={t} className={`p-4 rounded-2xl border-2 transition-all ${isOccupied ? 'border-red-500 bg-red-50' : 'bg-white border-transparent shadow-sm'}`}>
                   <div className="flex justify-between items-start mb-2">
-                    <div className="text-xl font-black text-gray-800">Bàn {t}</div>
+                    <div className="text-xl text-black text-gray-800">Bàn {t}</div>
                     {isOccupied && <span className="text-[6px] bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-bold">Chưa thanh toán</span>}
                   </div>
 
@@ -235,12 +249,17 @@ export default function MobilePOS() {
               </div>
 
               <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4 text-black">
-                {viewingOrder.items.map((item: any, idx: number) => (
-                  <div key={idx} className="flex justify-between">
-                    <span>{item.quantity}x {item.name}</span>
-                    <span className="font-bold">{(item.price * item.quantity).toLocaleString()}đ</span>
+                {viewingOrder.discount && viewingOrder.discount.amount > 0 && (
+                  <div className="flex justify-between text-gray-500 py-2 border-t border-dashed">
+                    <span>Giảm giá ({viewingOrder.discount.type === 'percent' ? `${viewingOrder.discount.value}%` : 'VNĐ'})</span>
+                    <span className="font-bold text-red-500">-{viewingOrder.discount.amount.toLocaleString()}đ</span>
                   </div>
-                ))}
+                )}
+
+                <div className="flex justify-between mb-4">
+                  <span className="font-bold text-gray-400">TỔNG CỘNG</span>
+                  <span className="text-2xl text-black text-orange-600">{viewingOrder.totalPrice.toLocaleString()}đ</span>
+                </div>
 
                 <div className="pt-4 border-t border-dashed">
                   <p className="font-bold text-gray-700 mb-2">Thanh toán bằng:</p>
@@ -265,11 +284,11 @@ export default function MobilePOS() {
               <div className="p-6 border-t bg-white">
                 <div className="flex justify-between mb-4">
                   <span className="font-bold text-gray-400">TỔNG CỘNG</span>
-                  <span className="text-2xl font-black text-orange-600">{viewingOrder.totalPrice.toLocaleString()}đ</span>
+                  <span className="text-2xl text-black text-orange-600">{viewingOrder.totalPrice.toLocaleString()}đ</span>
                 </div>
                 <button
                   onClick={() => processPaymentForOrder(viewingOrder.id)}
-                  className="w-full py-4 bg-green-600 text-white rounded-2xl font-black"
+                  className="w-full py-4 bg-green-600 text-white rounded-2xl text-black"
                 >
                   {isProcessing ? 'ĐANG XỬ LÝ...' : 'XÁC NHẬN THANH TOÁN'}
                 </button>
@@ -291,7 +310,7 @@ export default function MobilePOS() {
               </button>
 
               <div className="w-full text-center mb-4 pt-2">
-                <h3 className="font-black text-xl text-gray-900">Quét mã thanh toán</h3>
+                <h3 className="text-black text-xl text-gray-900">Quét mã thanh toán</h3>
                 <p className="text-orange-600 font-bold text-lg">
                   {viewingOrder.totalPrice.toLocaleString()}đ
                 </p>
@@ -305,7 +324,7 @@ export default function MobilePOS() {
 
               <div className="w-full bg-gray-50 p-4 rounded-3xl text-center mb-2">
                 <p className="text-sm text-gray-500 font-medium">Nội dung chuyển khoản:</p>
-                <p className="text-lg font-black text-gray-900">BAN {viewingOrder.tableId}</p>
+                <p className="text-lg text-black text-gray-900">BAN {viewingOrder.tableId}</p>
               </div>
 
               <button
@@ -332,7 +351,7 @@ export default function MobilePOS() {
                 </div>
                 <h3 className="font-bold text-xs h-8 line-clamp-2 leading-tight text-gray-800">{p.name}</h3>
                 <div className="flex justify-between items-center mt-2">
-                  <span className="text-orange-600 font-black text-sm">{p.price.toLocaleString()}đ</span>
+                  <span className="text-orange-600 text-black text-sm">{p.price.toLocaleString()}đ</span>
                   <button
                     className="bg-orange-500 text-white p-1.5 rounded-lg active:scale-90 shadow-md shadow-orange-100"
                   >
@@ -348,7 +367,7 @@ export default function MobilePOS() {
         {activeTab === 'orders' && (
           <div className="space-y-4 animate-in slide-in-from-right-4 duration-300">
             <div className="flex justify-between items-center mb-2">
-              <h2 className="font-black text-gray-800 text-lg">Lịch sử đơn hàng</h2>
+              <h2 className="text-black text-gray-800 text-lg">Lịch sử đơn hàng</h2>
               <button onClick={fetchOrders} className="text-xs font-bold text-orange-600 bg-orange-50 px-3 py-1 rounded-lg">Làm mới</button>
             </div>
 
@@ -367,8 +386,8 @@ export default function MobilePOS() {
                 <div key={order.id} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
                   <div className="flex justify-between items-start mb-3">
                     <div>
-                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Đơn hàng #{order.id}</p>
-                      <h4 className="text-lg font-black text-gray-800">Bàn số {order.tableId}</h4>
+                      <p className="text-[10px] text-black text-gray-400 uppercase tracking-widest">Đơn hàng #{order.id}</p>
+                      <h4 className="text-lg text-black text-gray-800">Bàn số {order.tableId}</h4>
                     </div>
                     {order.status === 'pending' ? (
                       <button
@@ -398,7 +417,7 @@ export default function MobilePOS() {
                     </div>
                     <div className="text-right">
                       <p className="text-[10px] text-gray-400 font-bold uppercase">Tổng cộng</p>
-                      <p className="text-base font-black text-orange-600">{order.totalPrice?.toLocaleString()}đ</p>
+                      <p className="text-base text-black text-orange-600">{order.totalPrice?.toLocaleString()}đ</p>
                     </div>
                   </div>
                 </div>
@@ -437,7 +456,7 @@ export default function MobilePOS() {
             </div>
 
             <div className="px-6 py-4 flex justify-between items-center">
-              <h2 className="text-xl font-black text-gray-800">Chi tiết đơn hàng</h2>
+              <h2 className="text-xl text-black text-gray-800">Chi tiết đơn hàng</h2>
               <button onClick={() => setShowCart(false)} className="p-2 bg-gray-100 rounded-full"><X size={20} className='text-black' /></button>
             </div>
 
@@ -450,11 +469,26 @@ export default function MobilePOS() {
                   </div>
                   <div className="flex items-center gap-3 bg-gray-50 p-1 rounded-xl">
                     <button onClick={() => updateQuantity(item.id, -1)} className="w-8 h-8 bg-white rounded-lg shadow-sm flex items-center justify-center text-gray-400"><Minus size={14} /></button>
-                    <span className="font-black w-4 text-center text-black">{item.quantity}</span>
+                    <span className="text-black w-4 text-center text-black">{item.quantity}</span>
                     <button onClick={() => updateQuantity(item.id, 1)} className="w-8 h-8 bg-white rounded-lg shadow-sm flex items-center justify-center text-orange-600"><Plus size={14} /></button>
                   </div>
                 </div>
               ))}
+
+              <div className="px-6 py-4 bg-gray-50 rounded-3xl mx-6 mb-4">
+                <p className="font-bold text-gray-700 mb-2">Giảm giá:</p>
+                <div className="flex gap-2 mb-2">
+                  <button onClick={() => setDiscountType('percent')} className={`flex-1 py-2 rounded-xl font-bold ${discountType === 'percent' ? 'bg-orange-500 text-black' : 'bg-white'}`}>%</button>
+                  <button onClick={() => setDiscountType('fixed')} className={`flex-1 py-2 rounded-xl font-bold ${discountType === 'fixed' ? 'bg-orange-500 text-black' : 'bg-white'}`}>VNĐ</button>
+                </div>
+                <input
+                  type="number"
+                  placeholder="Nhập giá trị giảm..."
+                  className="text-black w-full p-3 rounded-xl border border-gray-200 outline-none"
+                  value={discountValue || ''}
+                  onChange={(e) => setDiscountValue(e.target.value === '' ? 0 : Number(e.target.value))}
+                />
+              </div>
 
 
               <div className="px-6 py-4 space-y-3">
@@ -498,7 +532,7 @@ export default function MobilePOS() {
                     onClick={() => setIsQRExpanded(true)}
                   >
                     <img
-                      src={`https://img.vietqr.io/image/VCB-1021950952-compact2.jpg?amount=${cart.reduce((s, i) => s + (i.price * i.quantity), 0)}&addInfo=Ban%20${selectedTable}`}
+                      src={`https://img.vietqr.io/image/VCB-1021950952-compact2.jpg?amount=${finalTotal}&addInfo=Ban%20${selectedTable}`}
                       alt="QR Payment"
                       className="w-40 h-40 object-contain rounded-xl shadow-md bg-white p-2"
                     />
@@ -517,16 +551,28 @@ export default function MobilePOS() {
             </div>
 
             <div className="p-6 bg-white border-t space-y-4">
-              <div className="flex justify-between items-end">
-                <span className="font-bold text-gray-400">TỔNG CỘNG</span>
-                <span className="text-3xl font-black text-orange-600 tracking-tighter">
-                  {cart.reduce((s, i) => s + (i.price * i.quantity), 0).toLocaleString()}đ
+              <div className="space-y-2">
+                <div className="flex justify-between text-gray-600 text-sm">
+                  <span>Tạm tính</span>
+                  <span>{subtotal.toLocaleString()}đ</span>
+                </div>
+                {discountValue > 0 && (
+                  <div className="flex justify-between text-red-500 text-sm font-bold">
+                    <span>Giảm giá ({discountType === 'percent' ? `${discountValue}%` : 'VNĐ'})</span>
+                    <span>-{discountAmount.toLocaleString()}đ</span>
+                  </div>
+                )}
+              </div>
+              <div className="flex justify-between items-end border-t pt-3">
+                <span className="font-bold text-gray-700">TỔNG CỘNG</span>
+                <span className="text-3xl text-black text-orange-600 tracking-tighter">
+                  {finalTotal.toLocaleString()}đ
                 </span>
               </div>
               <button
                 disabled={isProcessing}
                 onClick={handleCheckout}
-                className="w-full py-4 bg-orange-600 text-white rounded-2xl font-black text-lg shadow-lg shadow-orange-200 disabled:bg-gray-200"
+                className="w-full py-4 bg-orange-600 text-white rounded-2xl text-black text-lg shadow-lg shadow-orange-200 disabled:bg-gray-200"
               >
                 {isProcessing ? 'ĐANG XỬ LÝ...' : 'XÁC NHẬN ĐẶT MÓN'}
               </button>
@@ -554,22 +600,22 @@ export default function MobilePOS() {
             </button>
 
             <div className="w-full text-center mb-4 pt-2">
-              <h3 className="font-black text-xl text-gray-900">Quét mã thanh toán</h3>
+              <h3 className="text-black text-xl text-gray-900">Quét mã thanh toán</h3>
               <p className="text-orange-600 font-bold text-lg">
-                {cart.reduce((s, i) => s + (i.price * i.quantity), 0).toLocaleString()}đ
+                {finalTotal.toLocaleString()}đ
               </p>
             </div>
 
             {/* QR Lớn */}
             <img
-              src={`https://img.vietqr.io/image/VCB-1021950952-compact2.jpg?amount=${cart.reduce((s, i) => s + (i.price * i.quantity), 0)}&addInfo=Ban%20${selectedTable}`}
+              src={`https://img.vietqr.io/image/VCB-1021950952-compact2.jpg?amount=${finalTotal}&addInfo=Ban%20${selectedTable}`}
               alt="QR Expanded"
               className="w-full aspect-square object-contain rounded-2xl mb-4"
             />
 
             <div className="w-full bg-gray-50 p-4 rounded-3xl text-center mb-2">
               <p className="text-sm text-gray-500 font-medium">Nội dung chuyển khoản:</p>
-              <p className="text-lg font-black text-gray-900">BAN {selectedTable}</p>
+              <p className="text-lg text-black text-gray-900">BAN {selectedTable}</p>
             </div>
 
             <button
@@ -584,13 +630,13 @@ export default function MobilePOS() {
       {/* Bottom Nav */}
       <footer className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-md border-t flex justify-around p-3 z-40">
         <button onClick={() => setActiveTab('tables')} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'tables' ? 'text-orange-500 scale-110' : 'text-gray-300'}`}>
-          <LayoutDashboard size={24} /><span className="text-[9px] font-black uppercase">Bàn</span>
+          <LayoutDashboard size={24} /><span className="text-[9px] text-black uppercase">Bàn</span>
         </button>
         <button onClick={() => setActiveTab('menu')} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'menu' ? 'text-orange-500 scale-110' : 'text-gray-300'}`}>
-          <Coffee size={24} /><span className="text-[9px] font-black uppercase">Menu</span>
+          <Coffee size={24} /><span className="text-[9px] text-black uppercase">Menu</span>
         </button>
         <button onClick={() => setActiveTab('orders')} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'orders' ? 'text-orange-500 scale-110' : 'text-gray-300'}`}>
-          <ClipboardList size={24} /><span className="text-[9px] font-black uppercase">Đơn hàng</span>
+          <ClipboardList size={24} /><span className="text-[9px] text-black uppercase">Đơn hàng</span>
         </button>
       </footer>
     </div>
