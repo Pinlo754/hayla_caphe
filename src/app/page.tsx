@@ -7,34 +7,41 @@ import { LayoutDashboard, Coffee, ClipboardList, Plus, Minus, ShoppingCart, X, C
 const MOCK_API_URL = 'https://69f11ba2c1533dbedc9e1899.mockapi.io/';
 
 const menuItems = [
-  { id: 1, name: 'Cà phê đen M', price: 35000, category: 'coffee' },
-  { id: 2, name: 'Cà phê đen L', price: 39000, category: 'coffee' },
-  { id: 3, name: 'Cà phê sữa M', price: 37000, category: 'coffee' },
-  { id: 4, name: 'Cà phê sữa L', price: 41000, category: 'coffee' },
-  { id: 5, name: 'Cà phê sữa tươi M', price: 44000, category: 'coffee' },
-  { id: 6, name: 'Cà phê sữa tươi L', price: 49000, category: 'coffee' },
-  { id: 7, name: 'Bạc xỉu M', price: 44000, category: 'coffee' },
-  { id: 8, name: 'Bạc xỉu L', price: 49000, category: 'coffee' },
-  { id: 9, name: 'Cà phê muối M', price: 44000, category: 'coffee' },
-  { id: 10, name: 'Cà phê muối L', price: 49000, category: 'coffee' },
-  { id: 11, name: 'Americano M', price: 39000, category: 'coffee' },
-  { id: 12, name: 'Americano L', price: 44000, category: 'coffee' },
-  { id: 15, name: 'Cappuccino', price: 44000, category: 'coffee' },
-  { id: 16, name: 'Latte', price: 44000, category: 'coffee' },
-  { id: 17, name: 'Coldbrew chanh vàng', price: 49000, category: 'coffee' },
-  { id: 26, name: 'Trà thạch đào', price: 49000, category: 'tea' },
-  { id: 27, name: 'Trà sen vàng kem lá dứa', price: 49000, category: 'tea' },
-  { id: 28, name: 'Trà Olong ổi hồng', price: 49000, category: 'tea' },
-  { id: 29, name: 'Trà quýt hồng đài', price: 49000, category: 'tea' },
-  { id: 30, name: 'Sữa chua bầu trời', price: 49000, category: 'yogurt' },
-  { id: 31, name: 'Sữa chua phô mai dâu', price: 49000, category: 'yogurt' },
+  { id: 1, name: 'Cà phê đen M', price: 35000, category: 'Coffee' },
+  { id: 2, name: 'Cà phê đen L', price: 39000, category: 'Coffee' },
+  { id: 3, name: 'Cà phê sữa M', price: 38000, category: 'Coffee' },
+  { id: 4, name: 'Cà phê sữa L', price: 41000, category: 'Coffee' },
+  { id: 5, name: 'Cà phê sữa tươi M', price: 44000, category: 'Coffee' },
+  { id: 6, name: 'Cà phê sữa tươi L', price: 49000, category: 'Coffee' },
+  { id: 7, name: 'Bạc xỉu M', price: 44000, category: 'Coffee' },
+  { id: 8, name: 'Bạc xỉu L', price: 49000, category: 'Coffee' },
+  { id: 9, name: 'Cà phê muối M', price: 44000, category: 'Coffee' },
+  { id: 10, name: 'Cà phê muối L', price: 49000, category: 'Coffee' },
+  { id: 11, name: 'Americano M', price: 39000, category: 'Coffee' },
+  { id: 12, name: 'Americano L', price: 44000, category: 'Coffee' },
+  { id: 15, name: 'Cappuccino', price: 44000, category: 'Coffee' },
+  { id: 16, name: 'Latte', price: 44000, category: 'Coffee' },
+  { id: 17, name: 'Coldbrew chanh vàng', price: 49000, category: 'Coffee' },
+  { id: 26, name: 'Trà thạch đào', price: 49000, category: 'Tea' },
+  { id: 27, name: 'Trà sen vàng kem lá dứa', price: 49000, category: 'Tea' },
+  { id: 28, name: 'Trà Olong ổi hồng', price: 49000, category: 'Tea' },
+  { id: 29, name: 'Trà quýt hồng đài', price: 49000, category: 'Tea' },
+  { id: 30, name: 'Sữa chua bầu trời', price: 49000, category: 'Yogurt' },
+  { id: 31, name: 'Sữa chua phô mai dâu', price: 49000, category: 'Yogurt' },
+  { id: 32, name: 'Matcha latte', price: 44000, category: 'Matcha' },
+  { id: 33, name: 'Trà bưởi xí muội', price: 49000, category: 'Tea' },
+  { id: 34, name: 'Matcha Cold Whisk', price: 49000, category: 'Matcha' },
+  { id: 35, name: 'Coco matcha cloud', price: 44000, category: 'Matcha' },
+  { id: 36, name: 'Cacao latte', price: 44000, category: 'Cacao' },
+  { id: 37, name: 'Cacao bạc hà kem muối', price: 49000, category: 'Cacao' },
 ];
 
 export default function MobilePOS() {
   const { cart, selectedTable, selectTable, addToCart, updateQuantity, clearCart, setCart } = usePosStore();
 
   const [activeTab, setActiveTab] = useState('tables');
-  const [products] = useState<any[]>(menuItems);
+  const [products] = useState<any[]>([...menuItems].sort((a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name)));
+  const [categoryFilter, setCategoryFilter] = useState('all');
   const [showCart, setShowCart] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'transfer'>('cash');
@@ -57,6 +64,9 @@ export default function MobilePOS() {
     ? (subtotal * (discountValue / 100))
     : Number(discountValue);
   const finalTotal = Math.max(0, subtotal - discountAmount);
+
+  const categories = ['all', ...Array.from(new Set(products.map((p) => p.category)))];
+  const filteredProducts = categoryFilter === 'all' ? products : products.filter((p) => p.category === categoryFilter);
 
   const occupiedTables = orders
     .filter(o => o.status === 'pending')
@@ -339,28 +349,50 @@ export default function MobilePOS() {
 
         {/* TAB 2: CHỌN MÓN */}
         {activeTab === 'menu' && (
-          <div className="grid grid-cols-2 gap-3 animate-in fade-in duration-300">
-            {products.map((p) => (
-              <div onClick={() => {
-                if (!selectedTable) return alert("Vui lòng chọn bàn trước!");
-                addToCart(p);
-              }}
-                key={p.id} className="bg-white p-3 rounded-2xl shadow-sm border border-gray-50 relative overflow-hidden">
-                <div className="h-20 bg-orange-50 rounded-xl mb-2 flex items-center justify-center text-orange-200">
-                  <Coffee size={28} />
-                </div>
-                <h3 className="font-bold text-xs h-8 line-clamp-2 leading-tight text-gray-800">{p.name}</h3>
-                <div className="flex justify-between items-center mt-2">
-                  <span className="text-orange-600 text-black text-sm">{p.price.toLocaleString()}đ</span>
-                  <button
-                    className="bg-orange-500 text-white p-1.5 rounded-lg active:scale-90 shadow-md shadow-orange-100"
-                  >
-                    <Plus size={18} />
-                  </button>
-                </div>
+          <>
+            <div className="mb-4 space-y-3 animate-in fade-in duration-300">
+              <div className="flex items-center justify-between">
+                <h2 className="text-black text-gray-800 text-lg">Menu</h2>
+                <span className="text-xs text-gray-500">{categoryFilter === 'all' ? 'Tất cả' : categoryFilter}</span>
               </div>
-            ))}
-          </div>
+              <div className="flex flex-wrap gap-2">
+                {categories.map((category) => (
+                  <button
+                    key={category}
+                    onClick={() => setCategoryFilter(category)}
+                    className={`py-2 px-3 rounded-2xl text-xs font-bold transition ${categoryFilter === category ? 'bg-orange-500 text-white' : 'bg-white text-gray-600 border border-gray-200'}`}
+                  >
+                    {category === 'all' ? 'Tất cả' : category}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3 animate-in fade-in duration-300">
+              {filteredProducts.map((p) => (
+                <div
+                  key={p.id}
+                  onClick={() => {
+                    if (!selectedTable) return alert("Vui lòng chọn bàn trước!");
+                    addToCart(p);
+                  }}
+                  className="bg-white p-3 rounded-2xl shadow-sm border border-gray-50 relative overflow-hidden"
+                >
+                  <div className="h-20 bg-orange-50 rounded-xl mb-2 flex items-center justify-center text-orange-200">
+                    <Coffee size={28} />
+                  </div>
+                  <h3 className="font-bold text-xs h-8 line-clamp-2 leading-tight text-gray-800">{p.name}</h3>
+                  <div className="flex justify-between items-center mt-2">
+                    <span className="text-orange-600 text-black text-sm">{p.price.toLocaleString()}đ</span>
+                    <button
+                      className="bg-orange-500 text-white p-1.5 rounded-lg active:scale-90 shadow-md shadow-orange-100"
+                    >
+                      <Plus size={18} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
         )}
 
         {/* TAB 3: DANH SÁCH ĐƠN HÀNG (TRANG MỚI) */}
@@ -390,12 +422,7 @@ export default function MobilePOS() {
                       <h4 className="text-lg text-black text-gray-800">Bàn số {order.tableId}</h4>
                     </div>
                     {order.status === 'pending' ? (
-                      <button
-                        onClick={() => handlePayOrder(order.id)}
-                        className="bg-green-500 text-white px-3 py-1 rounded-full text-[10px] font-bold flex items-center gap-1 animate-pulse"
-                      >
-                        <DollarSign size={10} /> Thanh toán
-                      </button>
+                      <span className="bg-orange-50 text-orange-600 px-3 py-1 rounded-full text-[10px] font-bold uppercase">Chờ thanh toán</span>
                     ) : (
                       <span className="bg-green-50 text-green-600 px-3 py-1 rounded-full text-[10px] font-bold uppercase">✅ Đã xong</span>
                     )}
