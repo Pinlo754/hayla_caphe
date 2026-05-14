@@ -31,9 +31,10 @@ const menuItems = [
   { id: 32, name: 'Matcha latte', price: 44000, category: 'Matcha' },
   { id: 33, name: 'Trà bưởi xí muội', price: 49000, category: 'Tea' },
   { id: 34, name: 'Matcha Cold Whisk', price: 49000, category: 'Matcha' },
-  { id: 35, name: 'Coco matcha cloud', price: 44000, category: 'Matcha' },
-  { id: 36, name: 'Cacao latte', price: 44000, category: 'Cacao' },
-  { id: 37, name: 'Cacao bạc hà kem muối', price: 49000, category: 'Cacao' },
+  { id: 35, name: 'Matcha Cold Whisk L', price: 59000, category: 'Matcha' },
+  { id: 36, name: 'Coco matcha cloud', price: 44000, category: 'Matcha' },
+  { id: 37, name: 'Cacao latte', price: 44000, category: 'Cacao' },
+  { id: 38, name: 'Cacao bạc hà kem muối', price: 49000, category: 'Cacao' },
 ];
 
 export default function MobilePOS() {
