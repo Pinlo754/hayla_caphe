@@ -157,7 +157,7 @@ export default function MobilePOS() {
         value: discountValue,
         amount: discountAmount
       } : null,
-      status: 'pending',
+      status: 'Complete',
       updatedAt: new Date().toISOString(),
     };
 
