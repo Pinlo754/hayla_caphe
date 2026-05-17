@@ -41,24 +41,33 @@ export default function OrdersTab({ orders, isLoading, onRefresh }: Props) {
                 <h4 className="text-lg text-gray-800">Bàn {order.tableId}</h4>
               </div>
               {order.status === 'pending' ? (
-                <span className="bg-orange-50 text-orange-600 px-3 py-1 rounded-full text-[10px] font-bold uppercase">
-                  Chờ thanh toán
-                </span>
+                <span className="bg-orange-50 text-orange-600 px-3 py-1 rounded-full text-[10px] font-bold uppercase">Chờ TT</span>
               ) : (
-                <span className="bg-green-50 text-green-600 px-3 py-1 rounded-full text-[10px] font-bold uppercase">
-                  ✅ Đã xong
-                </span>
+                <span className="bg-green-50 text-green-600 px-3 py-1 rounded-full text-[10px] font-bold uppercase">✅ Xong</span>
               )}
             </div>
 
-            <div className="space-y-1 mb-3 border-t border-b border-gray-50 py-2">
+            <div className="space-y-2 mb-3 border-t border-b border-gray-50 py-2">
               {order.items?.map((item, idx) => (
-                <div key={idx} className="flex justify-between text-xs text-gray-600">
-                  <div>
-                    <span>{item.quantity}x {item.name}</span>
-                    {item.note && <p className="text-[10px] text-orange-400">📝 {item.note}</p>}
+                <div key={idx} className="flex justify-between items-start text-xs">
+                  <div className="flex-1 min-w-0 mr-2">
+                    <div className="flex items-center gap-1 flex-wrap">
+                      <span className="text-gray-700">{item.quantity}x {item.name}</span>
+                      {item.size && (
+                        <span className="text-[9px] bg-orange-100 text-orange-500 px-1 rounded font-bold">{item.size}</span>
+                      )}
+                    </div>
+                    {item.toppings && item.toppings.length > 0 && (
+                      <p className="text-[10px] text-gray-400 mt-0.5">+ {item.toppings.join(' · ')}</p>
+                    )}
+                    {item.combo && (
+                      <p className="text-[10px] text-emerald-500 mt-0.5">🍹 {item.combo}</p>
+                    )}
+                    {item.note && (
+                      <p className="text-[10px] text-orange-400 mt-0.5">📝 {item.note}</p>
+                    )}
                   </div>
-                  <span>{(item.price * item.quantity).toLocaleString()}đ</span>
+                  <span className="text-gray-600 shrink-0">{(item.price * item.quantity).toLocaleString()}đ</span>
                 </div>
               ))}
             </div>

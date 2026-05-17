@@ -1,8 +1,12 @@
 export interface CartItem {
-  id: number | string;
+  id: string;            // composite key: `${productId}-${size}-${toppings}-${combo}`
+  productId?: number;    // base product id
   name: string;
-  price: number;
+  price: number;         // final price per unit (base + upsize + toppings)
   quantity: number;
+  size?: string;
+  toppings?: string[];
+  combo?: string;
   note?: string;
   category?: string;
 }
@@ -12,6 +16,7 @@ export interface MenuItem {
   name: string;
   price: number;
   category: string;
+  combos?: string[];     // required combo selection (e.g. daily juice)
 }
 
 export interface Discount {
@@ -38,7 +43,7 @@ export type DiscountType = 'percent' | 'fixed';
 
 export interface ReceiptData {
   tableId: number;
-  items: Array<{ name: string; price: number; quantity: number; note?: string }>;
+  items: CartItem[];
   subtotal: number;
   discountType?: DiscountType;
   discountValue?: number;

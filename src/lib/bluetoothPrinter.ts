@@ -119,9 +119,19 @@ function buildReceipt(data: ReceiptData): Uint8Array {
 
   for (const item of data.items) {
     const name = toASCII(item.name);
+    const sizeTag = item.size ? ` (${item.size})` : '';
+    const fullName = `${item.quantity}x ${name}${sizeTag}`;
     const priceStr = `${(item.price * item.quantity).toLocaleString()}d`;
-    const itemLine = `${item.quantity}x ${name}`;
-    line(padLine(itemLine.length + priceStr.length < RECEIPT_WIDTH ? itemLine : itemLine.slice(0, RECEIPT_WIDTH - priceStr.length - 1), priceStr));
+    const maxNameLen = RECEIPT_WIDTH - priceStr.length - 1;
+    const displayName = fullName.length > maxNameLen ? fullName.slice(0, maxNameLen) : fullName;
+    line(padLine(displayName, priceStr));
+
+    if (item.toppings && item.toppings.length > 0) {
+      line(`   + ${toASCII(item.toppings.join(', '))}`);
+    }
+    if (item.combo) {
+      line(`   > ${toASCII(item.combo)}`);
+    }
     if (item.note) {
       line(`   >> ${toASCII(item.note)}`);
     }

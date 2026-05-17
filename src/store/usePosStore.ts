@@ -5,9 +5,9 @@ interface PosState {
   selectedTable: number | null;
   cart: CartItem[];
   selectTable: (tableId: number) => void;
-  addToCart: (product: Omit<CartItem, 'quantity'>) => void;
-  updateQuantity: (id: number | string, delta: number) => void;
-  updateNote: (id: number | string, note: string) => void;
+  addToCart: (item: Omit<CartItem, 'quantity'>) => void;
+  updateQuantity: (id: string, delta: number) => void;
+  updateNote: (id: string, note: string) => void;
   clearCart: () => void;
   setCart: (items: CartItem[]) => void;
 }
@@ -18,30 +18,26 @@ export const usePosStore = create<PosState>((set) => ({
 
   selectTable: (tableId) => set({ selectedTable: tableId }),
 
-  addToCart: (product) => set((state) => {
-    const existing = state.cart.find(item => String(item.id) === String(product.id));
+  addToCart: (item) => set((state) => {
+    const existing = state.cart.find(c => c.id === item.id);
     if (existing) {
       return {
-        cart: state.cart.map(item =>
-          String(item.id) === String(product.id)
-            ? { ...item, quantity: item.quantity + 1 }
-            : item
+        cart: state.cart.map(c =>
+          c.id === item.id ? { ...c, quantity: c.quantity + 1 } : c
         ),
       };
     }
-    return { cart: [...state.cart, { ...product, quantity: 1 }] };
+    return { cart: [...state.cart, { ...item, quantity: 1 }] };
   }),
 
   updateQuantity: (id, delta) => set((state) => ({
     cart: state.cart
-      .map(item => String(item.id) === String(id) ? { ...item, quantity: Math.max(0, item.quantity + delta) } : item)
+      .map(item => item.id === id ? { ...item, quantity: Math.max(0, item.quantity + delta) } : item)
       .filter(item => item.quantity > 0),
   })),
 
   updateNote: (id, note) => set((state) => ({
-    cart: state.cart.map(item =>
-      String(item.id) === String(id) ? { ...item, note } : item
-    ),
+    cart: state.cart.map(item => item.id === id ? { ...item, note } : item),
   })),
 
   clearCart: () => set({ cart: [], selectedTable: null }),

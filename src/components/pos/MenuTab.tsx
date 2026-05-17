@@ -2,8 +2,9 @@
 
 import { useState } from 'react';
 import { Coffee, Plus } from 'lucide-react';
-import { MenuItem } from '@/types/pos.types';
+import { MenuItem, CartItem } from '@/types/pos.types';
 import { usePosStore } from '@/store/usePosStore';
+import ItemConfigModal from './ItemConfigModal';
 
 interface Props {
   products: MenuItem[];
@@ -12,16 +13,22 @@ interface Props {
 export default function MenuTab({ products }: Props) {
   const { selectedTable, addToCart } = usePosStore();
   const [categoryFilter, setCategoryFilter] = useState('all');
+  const [configItem, setConfigItem] = useState<MenuItem | null>(null);
 
   const categories = ['all', ...Array.from(new Set(products.map(p => p.category)))];
   const filtered = categoryFilter === 'all' ? products : products.filter(p => p.category === categoryFilter);
 
-  const handleAdd = (p: MenuItem) => {
+  const handleTap = (p: MenuItem) => {
     if (!selectedTable) {
       alert('Vui lòng chọn bàn trước!');
       return;
     }
-    addToCart(p);
+    setConfigItem(p);
+  };
+
+  const handleAdd = (cartItem: Omit<CartItem, 'quantity'>) => {
+    addToCart(cartItem);
+    setConfigItem(null);
   };
 
   return (
@@ -48,12 +55,20 @@ export default function MenuTab({ products }: Props) {
         {filtered.map((p) => (
           <div
             key={p.id}
-            onClick={() => handleAdd(p)}
-            className="bg-white p-3 rounded-2xl shadow-sm border border-gray-50 cursor-pointer active:scale-95 transition-transform"
+            onClick={() => handleTap(p)}
+            className="bg-white p-3 rounded-2xl shadow-sm border border-gray-50 cursor-pointer active:scale-95 transition-transform relative"
           >
             <div className="h-20 bg-orange-50 rounded-xl mb-2 flex items-center justify-center text-orange-200">
               <Coffee size={28} />
             </div>
+
+            {/* Combo badge */}
+            {p.combos && (
+              <div className="absolute top-2 right-2 bg-emerald-100 text-emerald-600 text-[9px] font-bold px-1.5 py-0.5 rounded-full">
+                Combo
+              </div>
+            )}
+
             <h3 className="font-bold text-xs h-8 line-clamp-2 leading-tight text-gray-800">{p.name}</h3>
             <div className="flex justify-between items-center mt-2">
               <span className="text-orange-600 text-sm">{p.price.toLocaleString()}đ</span>
@@ -64,6 +79,14 @@ export default function MenuTab({ products }: Props) {
           </div>
         ))}
       </div>
+
+      {configItem && (
+        <ItemConfigModal
+          item={configItem}
+          onClose={() => setConfigItem(null)}
+          onAdd={handleAdd}
+        />
+      )}
     </>
   );
 }
