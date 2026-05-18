@@ -26,7 +26,7 @@ export default function QRModal({ amount, tableId, onClose }: Props) {
         </div>
 
         <img
-          src={`https://img.vietqr.io/image/VCB-1021950952-compact2.jpg?amount=${amount}&addInfo=Ban%20${tableId}`}
+          src={`https://img.vietqr.io/image/MB-4440122752004-compact2.jpg?amount=${amount}&addInfo=Ban%20${tableId}`}
           alt="QR thanh toán"
           className="w-full aspect-square object-contain rounded-2xl mb-4"
         />

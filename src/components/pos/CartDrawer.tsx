@@ -137,11 +137,10 @@ export default function CartDrawer({
                 <button
                   key={pct}
                   onClick={() => handleQuickDiscount(pct)}
-                  className={`flex-1 py-2 rounded-xl text-xs font-bold transition ${
-                    discountType === 'percent' && discountValue === pct
+                  className={`flex-1 py-2 rounded-xl text-xs font-bold transition ${discountType === 'percent' && discountValue === pct
                       ? 'bg-orange-500 text-white shadow-md shadow-orange-200'
                       : 'bg-white text-gray-600 border border-gray-200'
-                  }`}
+                    }`}
                 >
                   {pct}%
                 </button>
@@ -192,12 +191,12 @@ export default function CartDrawer({
             {showQR && paymentMethod === 'transfer' && (
               <div className="mt-4 p-4 bg-orange-50 rounded-3xl border-2 border-dashed border-orange-200 flex flex-col items-center animate-in zoom-in duration-300">
                 <img
-                  src={`https://img.vietqr.io/image/VCB-1021950952-compact2.jpg?amount=${finalTotal}&addInfo=Ban%20${selectedTable}`}
+                  src={`https://img.vietqr.io/image/MB-4440122752004-compact2.jpg?amount=${finalTotal}&addInfo=Ban%20${selectedTable}`}
                   alt="QR thanh toán"
                   className="w-40 h-40 object-contain rounded-xl shadow-md bg-white p-2"
                 />
                 <p className="mt-2 text-[10px] text-center text-gray-500">
-                  Vietcombank · <b className="text-gray-900">1021950952</b>
+                  MB Bank · <b className="text-gray-900">4440122752004</b>
                 </p>
               </div>
             )}

@@ -93,7 +93,7 @@ export default function OrderDetailModal({ order, paymentMethod, isProcessing, o
               {paymentMethod === 'transfer' && (
                 <div className="mt-4 p-4 bg-orange-50 rounded-2xl flex flex-col items-center">
                   <img
-                    src={`https://img.vietqr.io/image/VCB-1021950952-compact2.jpg?amount=${order.totalPrice}&addInfo=Ban%20${order.tableId}`}
+                    src={`https://img.vietqr.io/image/MB-4440122752004-compact2.jpg?amount=${order.totalPrice}&addInfo=Ban%20${order.tableId}`}
                     className="w-32 h-32 object-contain cursor-pointer active:scale-95 transition-transform"
                     onClick={() => setQrExpanded(true)}
                   />
