@@ -5,6 +5,7 @@ import {
   getDocs,
   doc,
   updateDoc,
+  deleteDoc,
   query,
   orderBy,
   Timestamp,
@@ -49,6 +50,10 @@ export async function createOrder(data: Omit<Order, 'id'>): Promise<string> {
     createdAt: serverTimestamp(),
   });
   return docRef.id;
+}
+
+export async function deleteOrder(id: string): Promise<void> {
+  await deleteDoc(doc(db, COL, id));
 }
 
 export async function updateOrder(id: string, data: Partial<Omit<Order, 'id'>>): Promise<void> {

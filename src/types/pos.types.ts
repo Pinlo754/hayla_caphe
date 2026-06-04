@@ -16,7 +16,10 @@ export interface MenuItem {
   name: string;
   price: number;
   category: string;
-  combos?: string[];     // required combo selection (e.g. daily juice)
+  combos?: string[];
+  image?: string;
+  available?: boolean;
+  toppings?: string[];   // if set, only these toppings are available for this item
 }
 
 export interface Discount {
