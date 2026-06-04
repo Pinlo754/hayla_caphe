@@ -4,9 +4,12 @@ import { useState, useEffect, useRef } from 'react';
 import { ShoppingCart } from 'lucide-react';
 
 import { usePosStore } from '@/store/usePosStore';
-import { menuItems } from '@/data/menuItems';
+import { menuItems as staticMenu } from '@/data/menuItems';
 import { printer } from '@/lib/bluetoothPrinter';
 import { getOrders, createOrder, updateOrder } from '@/app/lib/firebaseOrders';
+import { getMenuItems } from '@/app/lib/firebaseMenu';
+import { getToppings } from '@/app/lib/firebaseToppings';
+import type { ToppingItem } from '@/app/lib/firebaseToppings';
 
 import PosHeader from '@/components/pos/PosHeader';
 import BottomNav from '@/components/pos/BottomNav';
@@ -17,11 +20,7 @@ import DashboardTab from '@/components/pos/DashboardTab';
 import CartDrawer from '@/components/pos/CartDrawer';
 import OrderDetailModal from '@/components/pos/OrderDetailModal';
 
-import type { ActiveTab, DiscountType, Order, PaymentMethod, ReceiptData } from '@/types/pos.types';
-
-const sortedMenu = [...menuItems].sort(
-  (a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name)
-);
+import type { ActiveTab, DiscountType, MenuItem, Order, PaymentMethod, ReceiptData } from '@/types/pos.types';
 
 export default function MobilePOS() {
   const { cart, selectedTable, selectTable, clearCart, setCart } = usePosStore();
@@ -34,6 +33,9 @@ export default function MobilePOS() {
   const [discountValue, setDiscountValue] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
 
+  const [menuData, setMenuData] = useState<MenuItem[]>([]);
+  const [toppingsData, setToppingsData] = useState<ToppingItem[]>([]);
+
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoadingOrders, setIsLoadingOrders] = useState(false);
 
@@ -43,6 +45,19 @@ export default function MobilePOS() {
 
   const [printerConnected, setPrinterConnected] = useState(false);
   const [printerName, setPrinterName] = useState('');
+
+  // Load menu + toppings from Firestore (fallback to static)
+  useEffect(() => {
+    getMenuItems()
+      .then(setMenuData)
+      .catch(() => {
+        const fallback = [...staticMenu].sort(
+          (a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name)
+        );
+        setMenuData(fallback);
+      });
+    getToppings().then(setToppingsData).catch(() => {});
+  }, []);
 
   const printerCheckRef = useRef<ReturnType<typeof setInterval> | null>(null);
   useEffect(() => {
@@ -222,7 +237,7 @@ export default function MobilePOS() {
           />
         )}
 
-        {activeTab === 'menu' && <MenuTab products={sortedMenu} />}
+        {activeTab === 'menu' && <MenuTab products={menuData} toppings={toppingsData} />}
 
         {activeTab === 'orders' && (
           <OrdersTab

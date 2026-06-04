@@ -3,14 +3,16 @@
 import { useState } from 'react';
 import { Coffee, Plus } from 'lucide-react';
 import { MenuItem, CartItem } from '@/types/pos.types';
+import type { ToppingItem } from '@/app/lib/firebaseToppings';
 import { usePosStore } from '@/store/usePosStore';
 import ItemConfigModal from './ItemConfigModal';
 
 interface Props {
   products: MenuItem[];
+  toppings: ToppingItem[];
 }
 
-export default function MenuTab({ products }: Props) {
+export default function MenuTab({ products, toppings }: Props) {
   const { selectedTable, addToCart } = usePosStore();
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [configItem, setConfigItem] = useState<MenuItem | null>(null);
@@ -58,8 +60,10 @@ export default function MenuTab({ products }: Props) {
             onClick={() => handleTap(p)}
             className="bg-white p-3 rounded-2xl shadow-sm border border-gray-50 cursor-pointer active:scale-95 transition-transform relative"
           >
-            <div className="h-20 bg-orange-50 rounded-xl mb-2 flex items-center justify-center text-orange-200">
-              <Coffee size={28} />
+            <div className="h-20 bg-orange-50 rounded-xl mb-2 flex items-center justify-center text-orange-200 overflow-hidden">
+              {p.image
+                ? <img src={p.image} alt={p.name} className="w-full h-full object-cover" />
+                : <Coffee size={28} />}
             </div>
 
             {/* Combo badge */}
@@ -83,6 +87,7 @@ export default function MenuTab({ products }: Props) {
       {configItem && (
         <ItemConfigModal
           item={configItem}
+          toppings={toppings}
           onClose={() => setConfigItem(null)}
           onAdd={handleAdd}
         />

@@ -5,6 +5,7 @@ import { X, Minus, Plus, ShoppingBag, MessageSquare } from 'lucide-react';
 import { DiscountType, PaymentMethod } from '@/types/pos.types';
 import { usePosStore } from '@/store/usePosStore';
 import { TOPPING_PRICE } from '@/data/menuItems';
+import QRModal from './QRModal';
 
 interface Props {
   discountType: DiscountType;
@@ -28,6 +29,7 @@ export default function CartDrawer({
   const { cart, selectedTable, updateQuantity, updateNote } = usePosStore();
   const [expandedNoteId, setExpandedNoteId] = useState<string | null>(null);
   const [showQR, setShowQR] = useState(false);
+  const [showQRModal, setShowQRModal] = useState(false);
 
   const subtotal = cart.reduce((s, i) => s + i.price * i.quantity, 0);
   const discountAmount = discountType === 'percent'
@@ -41,6 +43,14 @@ export default function CartDrawer({
   };
 
   return (
+    <>
+    {showQRModal && selectedTable && (
+      <QRModal
+        amount={finalTotal}
+        tableId={selectedTable}
+        onClose={() => setShowQRModal(false)}
+      />
+    )}
     <div className="fixed inset-0 z-50 flex flex-col justify-end">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
       <div className="relative bg-white rounded-t-[40px] max-h-[90vh] flex flex-col shadow-2xl animate-in slide-in-from-bottom duration-300">
@@ -193,11 +203,13 @@ export default function CartDrawer({
                 <img
                   src={`https://img.vietqr.io/image/MB-4440122752004-compact2.jpg?amount=${finalTotal}&addInfo=Ban%20${selectedTable}`}
                   alt="QR thanh toán"
-                  className="w-40 h-40 object-contain rounded-xl shadow-md bg-white p-2"
+                  onClick={() => setShowQRModal(true)}
+                  className="w-40 h-40 object-contain rounded-xl shadow-md bg-white p-2 cursor-pointer active:scale-95 transition-transform"
                 />
                 <p className="mt-2 text-[10px] text-center text-gray-500">
                   MB Bank · <b className="text-gray-900">4440122752004</b>
                 </p>
+                <p className="text-[10px] text-orange-400 mt-0.5">Chạm để phóng to</p>
               </div>
             )}
           </div>
@@ -232,5 +244,6 @@ export default function CartDrawer({
         </div>
       </div>
     </div>
+    </>
   );
 }

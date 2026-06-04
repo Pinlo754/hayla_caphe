@@ -3,23 +3,33 @@
 import { useState } from 'react';
 import { X, Check, Coffee, ChevronUp } from 'lucide-react';
 import { MenuItem, CartItem } from '@/types/pos.types';
-import { TOPPINGS, TOPPING_PRICE, UPSIZE_PRICE } from '@/data/menuItems';
+import type { ToppingItem } from '@/app/lib/firebaseToppings';
+import { UPSIZE_PRICE } from '@/data/menuItems';
 
 interface Props {
   item: MenuItem;
+  toppings: ToppingItem[];
   onClose: () => void;
   onAdd: (cartItem: Omit<CartItem, 'quantity'>) => void;
 }
 
-export default function ItemConfigModal({ item, onClose, onAdd }: Props) {
+export default function ItemConfigModal({ item, toppings: allToppings, onClose, onAdd }: Props) {
   const [isUpsized, setIsUpsized] = useState(false);
   const [selectedToppings, setSelectedToppings] = useState<string[]>([]);
   const [selectedCombo, setSelectedCombo] = useState<string | null>(null);
   const [note, setNote] = useState('');
   const [comboError, setComboError] = useState(false);
 
+  // Available toppings: item-specific list if set, otherwise all available
+  const availableToppings = item.toppings?.length
+    ? allToppings.filter((t) => item.toppings!.includes(t.name))
+    : allToppings;
+
   const basePrice = item.price + (isUpsized ? UPSIZE_PRICE : 0);
-  const toppingsCost = selectedToppings.length * TOPPING_PRICE;
+  const toppingsCost = selectedToppings.reduce((sum, name) => {
+    const t = availableToppings.find((x) => x.name === name);
+    return sum + (t?.price ?? 5000);
+  }, 0);
   const total = basePrice + toppingsCost;
 
   const toggleTopping = (topping: string) => {
@@ -112,23 +122,23 @@ export default function ItemConfigModal({ item, onClose, onAdd }: Props) {
           <section>
             <div className="flex items-center justify-between mb-2">
               <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Topping</p>
-              <span className="text-[10px] text-gray-400">Tuỳ chọn · +{TOPPING_PRICE.toLocaleString()}đ/loại</span>
+              <span className="text-[10px] text-gray-400">Tuỳ chọn</span>
             </div>
             <div className="space-y-1.5">
-              {TOPPINGS.map((topping) => {
-                const isSelected = selectedToppings.includes(topping);
+              {availableToppings.map((topping) => {
+                const isSelected = selectedToppings.includes(topping.name);
                 return (
                   <button
-                    key={topping}
-                    onClick={() => toggleTopping(topping)}
+                    key={topping.id}
+                    onClick={() => toggleTopping(topping.name)}
                     className={`w-full flex items-center justify-between p-3 rounded-2xl border transition-all ${isSelected ? 'border-orange-300 bg-orange-50' : 'border-gray-100 bg-white'}`}
                   >
                     <span className={`text-sm font-medium ${isSelected ? 'text-orange-700' : 'text-gray-700'}`}>
-                      {topping}
+                      {topping.name}
                     </span>
                     <div className="flex items-center gap-2">
                       <span className={`text-xs ${isSelected ? 'text-orange-500' : 'text-gray-400'}`}>
-                        +{TOPPING_PRICE.toLocaleString()}đ
+                        +{topping.price.toLocaleString()}đ
                       </span>
                       <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${isSelected ? 'bg-orange-500 border-orange-500' : 'border-gray-300'}`}>
                         {isSelected && <Check size={12} className="text-white" strokeWidth={3} />}
