@@ -6,18 +6,18 @@ import { ShoppingCart } from 'lucide-react';
 import { usePosStore } from '@/store/usePosStore';
 import { menuItems } from '@/data/menuItems';
 import { printer } from '@/lib/bluetoothPrinter';
+import { getOrders, createOrder, updateOrder } from '@/app/lib/firebaseOrders';
 
 import PosHeader from '@/components/pos/PosHeader';
 import BottomNav from '@/components/pos/BottomNav';
 import TableGrid from '@/components/pos/TableGrid';
 import MenuTab from '@/components/pos/MenuTab';
 import OrdersTab from '@/components/pos/OrdersTab';
+import DashboardTab from '@/components/pos/DashboardTab';
 import CartDrawer from '@/components/pos/CartDrawer';
 import OrderDetailModal from '@/components/pos/OrderDetailModal';
 
 import type { ActiveTab, DiscountType, Order, PaymentMethod, ReceiptData } from '@/types/pos.types';
-
-const MOCK_API_URL = 'https://69f11ba2c1533dbedc9e1899.mockapi.io';
 
 const sortedMenu = [...menuItems].sort(
   (a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name)
@@ -44,7 +44,6 @@ export default function MobilePOS() {
   const [printerConnected, setPrinterConnected] = useState(false);
   const [printerName, setPrinterName] = useState('');
 
-  // Keep printer status in sync
   const printerCheckRef = useRef<ReturnType<typeof setInterval> | null>(null);
   useEffect(() => {
     printerCheckRef.current = setInterval(() => {
@@ -66,11 +65,8 @@ export default function MobilePOS() {
   const fetchOrders = async () => {
     setIsLoadingOrders(true);
     try {
-      const res = await fetch(`${MOCK_API_URL}/orders`);
-      if (res.ok) {
-        const data = await res.json();
-        setOrders((data as Order[]).reverse());
-      }
+      const data = await getOrders();
+      setOrders(data);
     } catch (e) {
       console.error('Lỗi tải đơn hàng:', e);
     } finally {
@@ -79,7 +75,7 @@ export default function MobilePOS() {
   };
 
   useEffect(() => {
-    if (activeTab === 'orders' || activeTab === 'tables') {
+    if (activeTab === 'orders' || activeTab === 'tables' || activeTab === 'dashboard') {
       fetchOrders();
     }
   }, [activeTab]);
@@ -136,29 +132,17 @@ export default function MobilePOS() {
       items: cart,
       totalPrice: finalTotal,
       discount: discountValue > 0 ? { type: discountType, value: discountValue, amount: discountAmount } : null,
-      status: 'Complete',
-      updatedAt: new Date().toISOString(),
+      status: 'Complete' as const,
+      paymentMethod,
     };
 
     try {
-      const url = editingOrderId
-        ? `${MOCK_API_URL}/orders/${editingOrderId}`
-        : `${MOCK_API_URL}/orders`;
+      if (editingOrderId) {
+        await updateOrder(editingOrderId, orderData);
+      } else {
+        await createOrder({ ...orderData, createdAt: new Date().toISOString() });
+      }
 
-      const method = editingOrderId ? 'PUT' : 'POST';
-      const body = editingOrderId
-        ? { ...orderData, id: editingOrderId }
-        : { ...orderData, createdAt: new Date().toISOString() };
-
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-
-      if (!res.ok) throw new Error('Lỗi server');
-
-      // Print receipt
       await printReceipt({
         tableId: selectedTable,
         items: cart,
@@ -190,15 +174,8 @@ export default function MobilePOS() {
   const handleConfirmPayment = async (orderId: string) => {
     setIsProcessing(true);
     try {
-      const res = await fetch(`${MOCK_API_URL}/orders/${orderId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'completed', paymentMethod }),
-      });
+      await updateOrder(orderId, { status: 'completed', paymentMethod });
 
-      if (!res.ok) throw new Error('Lỗi server');
-
-      // Print receipt for this order
       if (viewingOrder) {
         const orderSubtotal = viewingOrder.items.reduce((s, i) => s + i.price * i.quantity, 0);
         await printReceipt({
@@ -254,9 +231,16 @@ export default function MobilePOS() {
             onRefresh={fetchOrders}
           />
         )}
+
+        {activeTab === 'dashboard' && (
+          <DashboardTab
+            orders={orders}
+            isLoading={isLoadingOrders}
+            onRefresh={fetchOrders}
+          />
+        )}
       </main>
 
-      {/* Floating cart button */}
       {cart.length > 0 && activeTab === 'menu' && (
         <div
           onClick={() => setShowCart(true)}

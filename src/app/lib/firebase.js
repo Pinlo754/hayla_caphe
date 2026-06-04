@@ -14,7 +14,7 @@ const firebaseConfig = {
 };
 
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
-const db = getFirestore(app);
+const db = getFirestore(app, 'haylacaphe');
 const auth = getAuth(app);
 
 export { db, auth };
