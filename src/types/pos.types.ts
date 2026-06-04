@@ -40,6 +40,16 @@ export interface Order {
   updatedAt?: string;
 }
 
+export interface Customer {
+  id: string;        // e.g. 'haylacaphe-KH0001'
+  name: string;
+  phone: string;
+  address?: string;
+  points: number;
+  createdAt: string;
+  updatedAt?: string;
+}
+
 export type PaymentMethod = 'cash' | 'transfer';
 export type ActiveTab = 'tables' | 'menu' | 'orders' | 'dashboard';
 export type DiscountType = 'percent' | 'fixed';

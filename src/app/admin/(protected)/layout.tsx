@@ -3,13 +3,14 @@
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { BarChart2, Coffee, ClipboardList, Layers, LogOut, Menu, X } from 'lucide-react';
+import { BarChart2, Coffee, ClipboardList, Layers, Users, LogOut, Menu, X } from 'lucide-react';
 
 const NAV = [
   { href: '/admin/dashboard', label: 'Dashboard', icon: BarChart2 },
   { href: '/admin/menu', label: 'Thực đơn', icon: Coffee },
   { href: '/admin/orders', label: 'Đơn hàng', icon: ClipboardList },
   { href: '/admin/toppings', label: 'Topping', icon: Layers },
+  { href: '/admin/customers', label: 'Khách hàng', icon: Users },
 ];
 
 export default function ProtectedLayout({ children }: { children: React.ReactNode }) {

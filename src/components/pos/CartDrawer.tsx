@@ -2,16 +2,19 @@
 
 import { useState } from 'react';
 import { X, Minus, Plus, ShoppingBag, MessageSquare } from 'lucide-react';
-import { DiscountType, PaymentMethod } from '@/types/pos.types';
+import { Customer, DiscountType, PaymentMethod } from '@/types/pos.types';
 import { usePosStore } from '@/store/usePosStore';
 import { TOPPING_PRICE } from '@/data/menuItems';
 import QRModal from './QRModal';
+import CustomerLoyalty from './CustomerLoyalty';
 
 interface Props {
   discountType: DiscountType;
   discountValue: number;
   paymentMethod: PaymentMethod;
   isProcessing: boolean;
+  selectedCustomer: Customer | null;
+  onCustomerChange: (c: Customer | null) => void;
   onDiscountTypeChange: (t: DiscountType) => void;
   onDiscountValueChange: (v: number) => void;
   onPaymentMethodChange: (m: PaymentMethod) => void;
@@ -23,6 +26,7 @@ const QUICK_DISCOUNTS = [20, 30, 50, 100];
 
 export default function CartDrawer({
   discountType, discountValue, paymentMethod, isProcessing,
+  selectedCustomer, onCustomerChange,
   onDiscountTypeChange, onDiscountValueChange, onPaymentMethodChange,
   onCheckout, onClose,
 }: Props) {
@@ -139,8 +143,17 @@ export default function CartDrawer({
             ))}
           </div>
 
+          {/* Loyalty */}
+          <div className="mx-6 mt-5">
+            <CustomerLoyalty
+              orderTotal={finalTotal}
+              customer={selectedCustomer}
+              onCustomerChange={onCustomerChange}
+            />
+          </div>
+
           {/* Discount */}
-          <div className="mx-6 mt-5 p-4 bg-gray-50 rounded-3xl">
+          <div className="mx-6 mt-4 p-4 bg-gray-50 rounded-3xl">
             <p className="font-bold text-gray-700 mb-3 text-sm">Giảm giá</p>
             <div className="flex gap-2 mb-3">
               {QUICK_DISCOUNTS.map((pct) => (

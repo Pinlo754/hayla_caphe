@@ -10,6 +10,7 @@ import { getOrders, createOrder, updateOrder } from '@/app/lib/firebaseOrders';
 import { getMenuItems } from '@/app/lib/firebaseMenu';
 import { getToppings } from '@/app/lib/firebaseToppings';
 import type { ToppingItem } from '@/app/lib/firebaseToppings';
+import { addPoints } from '@/app/lib/firebaseCustomers';
 
 import PosHeader from '@/components/pos/PosHeader';
 import BottomNav from '@/components/pos/BottomNav';
@@ -20,7 +21,7 @@ import DashboardTab from '@/components/pos/DashboardTab';
 import CartDrawer from '@/components/pos/CartDrawer';
 import OrderDetailModal from '@/components/pos/OrderDetailModal';
 
-import type { ActiveTab, DiscountType, MenuItem, Order, PaymentMethod, ReceiptData } from '@/types/pos.types';
+import type { ActiveTab, Customer, DiscountType, MenuItem, Order, PaymentMethod, ReceiptData } from '@/types/pos.types';
 
 export default function MobilePOS() {
   const { cart, selectedTable, selectTable, clearCart, setCart } = usePosStore();
@@ -35,6 +36,7 @@ export default function MobilePOS() {
 
   const [menuData, setMenuData] = useState<MenuItem[]>([]);
   const [toppingsData, setToppingsData] = useState<ToppingItem[]>([]);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
 
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoadingOrders, setIsLoadingOrders] = useState(false);
@@ -170,6 +172,13 @@ export default function MobilePOS() {
         createdAt: new Date(),
       });
 
+      // Award loyalty points
+      if (selectedCustomer) {
+        const pts = Math.floor(finalTotal / 1000);
+        if (pts > 0) await addPoints(selectedCustomer.id, pts).catch(() => {});
+        setSelectedCustomer(null);
+      }
+
       clearCart();
       setEditingOrderId(null);
       setDiscountValue(0);
@@ -280,6 +289,8 @@ export default function MobilePOS() {
           discountValue={discountValue}
           paymentMethod={paymentMethod}
           isProcessing={isProcessing}
+          selectedCustomer={selectedCustomer}
+          onCustomerChange={setSelectedCustomer}
           onDiscountTypeChange={setDiscountType}
           onDiscountValueChange={setDiscountValue}
           onPaymentMethodChange={setPaymentMethod}
