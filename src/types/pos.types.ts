@@ -38,7 +38,7 @@ export interface Order {
 }
 
 export type PaymentMethod = 'cash' | 'transfer';
-export type ActiveTab = 'tables' | 'menu' | 'orders';
+export type ActiveTab = 'tables' | 'menu' | 'orders' | 'dashboard';
 export type DiscountType = 'percent' | 'fixed';
 
 export interface ReceiptData {

@@ -60,7 +60,7 @@ export const menuItems: MenuItem[] = [
   // ── Matcha ───────────────────────────────────────────────────────────
   { id: 32, name: 'Matcha latte',       price: 44000, category: 'Matcha' },
   { id: 34, name: 'Matcha Cold Whisk',  price: 49000, category: 'Matcha' },
-  { id: 36, name: 'Matcha coco cloud',  price: 44000, category: 'Matcha' },
+  { id: 36, name: 'Matcha coco cloud',  price: 49000, category: 'Matcha' },
   { id: 42, name: 'Houjicha latte',     price: 49000, category: 'Matcha' },
   { id: 43, name: 'Matcha kem muối',    price: 49000, category: 'Matcha' },
 
