@@ -36,6 +36,7 @@ export interface Order {
   discount?: Discount | null;
   status: 'pending' | 'completed' | 'Complete';
   paymentMethod?: PaymentMethod;
+  receiptImage?: string;   // URL of transfer receipt photo (required for transfer)
   createdAt: string;
   updatedAt?: string;
 }

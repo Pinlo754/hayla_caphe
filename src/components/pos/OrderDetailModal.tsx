@@ -4,17 +4,20 @@ import { useState } from 'react';
 import { X, Printer } from 'lucide-react';
 import { Order, PaymentMethod } from '@/types/pos.types';
 import QRModal from './QRModal';
+import ReceiptCapture from './ReceiptCapture';
 
 interface Props {
   order: Order;
   paymentMethod: PaymentMethod;
   isProcessing: boolean;
+  receiptFile: File | null;
+  onReceiptChange: (f: File | null) => void;
   onPaymentMethodChange: (m: PaymentMethod) => void;
   onConfirmPayment: (orderId: string) => void;
   onClose: () => void;
 }
 
-export default function OrderDetailModal({ order, paymentMethod, isProcessing, onPaymentMethodChange, onConfirmPayment, onClose }: Props) {
+export default function OrderDetailModal({ order, paymentMethod, isProcessing, receiptFile, onReceiptChange, onPaymentMethodChange, onConfirmPayment, onClose }: Props) {
   const [qrExpanded, setQrExpanded] = useState(false);
 
   return (
@@ -91,14 +94,19 @@ export default function OrderDetailModal({ order, paymentMethod, isProcessing, o
                 </button>
               </div>
               {paymentMethod === 'transfer' && (
-                <div className="mt-4 p-4 bg-orange-50 rounded-2xl flex flex-col items-center">
-                  <img
-                    src={`https://img.vietqr.io/image/MB-4440122752004-compact2.jpg?amount=${order.totalPrice}&addInfo=Ban%20${order.tableId}`}
-                    className="w-32 h-32 object-contain cursor-pointer active:scale-95 transition-transform"
-                    onClick={() => setQrExpanded(true)}
-                  />
-                  <p className="text-[10px] text-gray-400 mt-1">Chạm để phóng to</p>
-                </div>
+                <>
+                  <div className="mt-4 p-4 bg-orange-50 rounded-2xl flex flex-col items-center">
+                    <img
+                      src={`https://img.vietqr.io/image/MB-4440122752004-compact2.jpg?amount=${order.totalPrice}&addInfo=Ban%20${order.tableId}`}
+                      className="w-32 h-32 object-contain cursor-pointer active:scale-95 transition-transform"
+                      onClick={() => setQrExpanded(true)}
+                    />
+                    <p className="text-[10px] text-gray-400 mt-1">Chạm để phóng to</p>
+                  </div>
+                  <div className="mt-3">
+                    <ReceiptCapture file={receiptFile} onChange={onReceiptChange} />
+                  </div>
+                </>
               )}
             </div>
           </div>
@@ -108,10 +116,15 @@ export default function OrderDetailModal({ order, paymentMethod, isProcessing, o
               <span className="font-bold text-gray-500 text-sm uppercase">Tổng cộng</span>
               <span className="text-2xl text-orange-600">{order.totalPrice.toLocaleString()}đ</span>
             </div>
+            {paymentMethod === 'transfer' && !receiptFile && (
+              <p className="text-center text-[11px] text-amber-600 font-medium mb-2">
+                ⚠ Vui lòng chụp ảnh biên lai chuyển khoản trước khi thanh toán
+              </p>
+            )}
             <button
               onClick={() => onConfirmPayment(order.id)}
-              disabled={isProcessing}
-              className="w-full py-4 bg-green-600 text-white rounded-2xl font-bold text-base flex items-center justify-center gap-2 disabled:bg-gray-200"
+              disabled={isProcessing || (paymentMethod === 'transfer' && !receiptFile)}
+              className="w-full py-4 bg-green-600 text-white rounded-2xl font-bold text-base flex items-center justify-center gap-2 disabled:bg-gray-200 disabled:text-gray-400"
             >
               <Printer size={20} />
               {isProcessing ? 'ĐANG XỬ LÝ...' : 'THANH TOÁN & IN HÓA ĐƠN'}

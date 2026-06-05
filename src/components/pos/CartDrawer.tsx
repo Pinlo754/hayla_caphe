@@ -7,6 +7,7 @@ import { usePosStore } from '@/store/usePosStore';
 import { TOPPING_PRICE } from '@/data/menuItems';
 import QRModal from './QRModal';
 import CustomerLoyalty from './CustomerLoyalty';
+import ReceiptCapture from './ReceiptCapture';
 
 interface Props {
   discountType: DiscountType;
@@ -15,6 +16,8 @@ interface Props {
   isProcessing: boolean;
   selectedCustomer: Customer | null;
   onCustomerChange: (c: Customer | null) => void;
+  receiptFile: File | null;
+  onReceiptChange: (f: File | null) => void;
   onDiscountTypeChange: (t: DiscountType) => void;
   onDiscountValueChange: (v: number) => void;
   onPaymentMethodChange: (m: PaymentMethod) => void;
@@ -27,6 +30,7 @@ const QUICK_DISCOUNTS = [20, 30, 50, 100];
 export default function CartDrawer({
   discountType, discountValue, paymentMethod, isProcessing,
   selectedCustomer, onCustomerChange,
+  receiptFile, onReceiptChange,
   onDiscountTypeChange, onDiscountValueChange, onPaymentMethodChange,
   onCheckout, onClose,
 }: Props) {
@@ -225,6 +229,13 @@ export default function CartDrawer({
                 <p className="text-[10px] text-orange-400 mt-0.5">Chạm để phóng to</p>
               </div>
             )}
+
+            {/* Mandatory transfer receipt photo */}
+            {paymentMethod === 'transfer' && (
+              <div className="mt-4">
+                <ReceiptCapture file={receiptFile} onChange={onReceiptChange} />
+              </div>
+            )}
           </div>
         </div>
 
@@ -245,10 +256,15 @@ export default function CartDrawer({
             <span className="font-bold text-gray-700">TỔNG CỘNG</span>
             <span className="text-3xl text-orange-600 tracking-tighter">{finalTotal.toLocaleString()}đ</span>
           </div>
+          {paymentMethod === 'transfer' && !receiptFile && (
+            <p className="text-center text-[11px] text-amber-600 font-medium">
+              ⚠ Vui lòng chụp ảnh biên lai chuyển khoản trước khi xác nhận
+            </p>
+          )}
           <button
-            disabled={isProcessing}
+            disabled={isProcessing || (paymentMethod === 'transfer' && !receiptFile)}
             onClick={onCheckout}
-            className="w-full py-4 bg-orange-600 text-white rounded-2xl text-lg font-bold shadow-lg shadow-orange-200 disabled:bg-gray-200 flex items-center justify-center gap-2"
+            className="w-full py-4 bg-orange-600 text-white rounded-2xl text-lg font-bold shadow-lg shadow-orange-200 disabled:bg-gray-200 disabled:text-gray-400 flex items-center justify-center gap-2"
           >
             <ShoppingBag size={20} />
             {isProcessing ? 'ĐANG XỬ LÝ...' : 'XÁC NHẬN & IN HÓA ĐƠN'}
