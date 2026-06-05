@@ -12,6 +12,7 @@ import { getToppings } from '@/app/lib/firebaseToppings';
 import type { ToppingItem } from '@/app/lib/firebaseToppings';
 import { addPoints } from '@/app/lib/firebaseCustomers';
 import { uploadReceiptImage } from '@/app/lib/firebaseStorage';
+import { getPosSettings } from '@/app/lib/firebaseSettings';
 
 import PosHeader from '@/components/pos/PosHeader';
 import BottomNav from '@/components/pos/BottomNav';
@@ -57,6 +58,7 @@ export default function MobilePOS() {
   const [toppingsData, setToppingsData] = useState<ToppingItem[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [autoDownloadReceipt, setAutoDownloadReceipt] = useState(true);
 
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoadingOrders, setIsLoadingOrders] = useState(false);
@@ -79,6 +81,7 @@ export default function MobilePOS() {
         setMenuData(fallback);
       });
     getToppings().then(setToppingsData).catch(() => {});
+    getPosSettings().then((s) => setAutoDownloadReceipt(s.autoDownloadReceipt));
   }, []);
 
   const printerCheckRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -191,8 +194,8 @@ export default function MobilePOS() {
         await createOrder({ ...orderData, createdAt: new Date().toISOString() });
       }
 
-      // Order saved — save the receipt photo to the local device too
-      if (receiptFile) downloadReceiptLocally(receiptFile, selectedTable);
+      // Order saved — save the receipt photo to the local device (if enabled in admin settings)
+      if (receiptFile && autoDownloadReceipt) downloadReceiptLocally(receiptFile, selectedTable);
 
       await printReceipt({
         tableId: selectedTable,
@@ -248,8 +251,8 @@ export default function MobilePOS() {
         ...(receiptImage ? { receiptImage } : {}),
       });
 
-      // Order paid — save the receipt photo to the local device too
-      if (receiptFile && viewingOrder) downloadReceiptLocally(receiptFile, viewingOrder.tableId);
+      // Order paid — save the receipt photo to the local device (if enabled in admin settings)
+      if (receiptFile && viewingOrder && autoDownloadReceipt) downloadReceiptLocally(receiptFile, viewingOrder.tableId);
 
       if (viewingOrder) {
         const orderSubtotal = viewingOrder.items.reduce((s, i) => s + i.price * i.quantity, 0);
