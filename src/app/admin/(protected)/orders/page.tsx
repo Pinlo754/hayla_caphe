@@ -185,6 +185,21 @@ export default function AdminOrdersPage() {
                             <span>-{order.discount.amount.toLocaleString()}đ</span>
                           </div>
                         )}
+                        {order.receiptImage && (
+                          <div className="pt-2 border-t border-gray-200">
+                            <p className="text-xs text-gray-500 mb-1.5 flex items-center gap-1">
+                              <CreditCard size={11} /> Biên lai chuyển khoản
+                            </p>
+                            <a href={order.receiptImage} target="_blank" rel="noopener noreferrer">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={order.receiptImage}
+                                alt="Biên lai"
+                                className="w-28 h-28 object-cover rounded-xl border border-gray-200 hover:ring-2 hover:ring-orange-300 transition cursor-zoom-in"
+                              />
+                            </a>
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}

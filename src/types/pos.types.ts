@@ -36,6 +36,17 @@ export interface Order {
   discount?: Discount | null;
   status: 'pending' | 'completed' | 'Complete';
   paymentMethod?: PaymentMethod;
+  receiptImage?: string;   // URL of transfer receipt photo (required for transfer)
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface Customer {
+  id: string;        // e.g. 'haylacaphe-KH0001'
+  name: string;
+  phone: string;
+  address?: string;
+  points: number;
   createdAt: string;
   updatedAt?: string;
 }

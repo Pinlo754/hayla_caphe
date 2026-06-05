@@ -10,6 +10,8 @@ import { getOrders, createOrder, updateOrder } from '@/app/lib/firebaseOrders';
 import { getMenuItems } from '@/app/lib/firebaseMenu';
 import { getToppings } from '@/app/lib/firebaseToppings';
 import type { ToppingItem } from '@/app/lib/firebaseToppings';
+import { addPoints } from '@/app/lib/firebaseCustomers';
+import { uploadReceiptImage } from '@/app/lib/firebaseStorage';
 
 import PosHeader from '@/components/pos/PosHeader';
 import BottomNav from '@/components/pos/BottomNav';
@@ -20,7 +22,7 @@ import DashboardTab from '@/components/pos/DashboardTab';
 import CartDrawer from '@/components/pos/CartDrawer';
 import OrderDetailModal from '@/components/pos/OrderDetailModal';
 
-import type { ActiveTab, DiscountType, MenuItem, Order, PaymentMethod, ReceiptData } from '@/types/pos.types';
+import type { ActiveTab, Customer, DiscountType, MenuItem, Order, PaymentMethod, ReceiptData } from '@/types/pos.types';
 
 export default function MobilePOS() {
   const { cart, selectedTable, selectTable, clearCart, setCart } = usePosStore();
@@ -35,6 +37,8 @@ export default function MobilePOS() {
 
   const [menuData, setMenuData] = useState<MenuItem[]>([]);
   const [toppingsData, setToppingsData] = useState<ToppingItem[]>([]);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
 
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoadingOrders, setIsLoadingOrders] = useState(false);
@@ -140,18 +144,29 @@ export default function MobilePOS() {
 
   const handleCheckout = async () => {
     if (!selectedTable || cart.length === 0) return;
+    if (paymentMethod === 'transfer' && !receiptFile) {
+      alert('Vui lòng chụp ảnh biên lai chuyển khoản.');
+      return;
+    }
     setIsProcessing(true);
 
-    const orderData = {
-      tableId: selectedTable,
-      items: cart,
-      totalPrice: finalTotal,
-      discount: discountValue > 0 ? { type: discountType, value: discountValue, amount: discountAmount } : null,
-      status: 'Complete' as const,
-      paymentMethod,
-    };
-
     try {
+      // Upload transfer receipt first (fail fast before writing the order)
+      let receiptImage: string | undefined;
+      if (paymentMethod === 'transfer' && receiptFile) {
+        receiptImage = await uploadReceiptImage(receiptFile);
+      }
+
+      const orderData = {
+        tableId: selectedTable,
+        items: cart,
+        totalPrice: finalTotal,
+        discount: discountValue > 0 ? { type: discountType, value: discountValue, amount: discountAmount } : null,
+        status: 'Complete' as const,
+        paymentMethod,
+        ...(receiptImage ? { receiptImage } : {}),
+      };
+
       if (editingOrderId) {
         await updateOrder(editingOrderId, orderData);
       } else {
@@ -170,11 +185,19 @@ export default function MobilePOS() {
         createdAt: new Date(),
       });
 
+      // Award loyalty points
+      if (selectedCustomer) {
+        const pts = Math.floor(finalTotal / 1000);
+        if (pts > 0) await addPoints(selectedCustomer.id, pts).catch(() => {});
+        setSelectedCustomer(null);
+      }
+
       clearCart();
       setEditingOrderId(null);
       setDiscountValue(0);
       setDiscountType('percent');
       setPaymentMethod('cash');
+      setReceiptFile(null);
       setShowCart(false);
       setActiveTab('orders');
       fetchOrders();
@@ -187,9 +210,22 @@ export default function MobilePOS() {
   };
 
   const handleConfirmPayment = async (orderId: string) => {
+    if (paymentMethod === 'transfer' && !receiptFile) {
+      alert('Vui lòng chụp ảnh biên lai chuyển khoản.');
+      return;
+    }
     setIsProcessing(true);
     try {
-      await updateOrder(orderId, { status: 'completed', paymentMethod });
+      let receiptImage: string | undefined;
+      if (paymentMethod === 'transfer' && receiptFile) {
+        receiptImage = await uploadReceiptImage(receiptFile);
+      }
+
+      await updateOrder(orderId, {
+        status: 'completed',
+        paymentMethod,
+        ...(receiptImage ? { receiptImage } : {}),
+      });
 
       if (viewingOrder) {
         const orderSubtotal = viewingOrder.items.reduce((s, i) => s + i.price * i.quantity, 0);
@@ -208,6 +244,7 @@ export default function MobilePOS() {
 
       setShowOrderModal(false);
       setViewingOrder(null);
+      setReceiptFile(null);
       fetchOrders();
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Lỗi không xác định';
@@ -280,11 +317,15 @@ export default function MobilePOS() {
           discountValue={discountValue}
           paymentMethod={paymentMethod}
           isProcessing={isProcessing}
+          selectedCustomer={selectedCustomer}
+          onCustomerChange={setSelectedCustomer}
+          receiptFile={receiptFile}
+          onReceiptChange={setReceiptFile}
           onDiscountTypeChange={setDiscountType}
           onDiscountValueChange={setDiscountValue}
           onPaymentMethodChange={setPaymentMethod}
           onCheckout={handleCheckout}
-          onClose={() => setShowCart(false)}
+          onClose={() => { setShowCart(false); setReceiptFile(null); }}
         />
       )}
 
@@ -293,9 +334,11 @@ export default function MobilePOS() {
           order={viewingOrder}
           paymentMethod={paymentMethod}
           isProcessing={isProcessing}
+          receiptFile={receiptFile}
+          onReceiptChange={setReceiptFile}
           onPaymentMethodChange={setPaymentMethod}
           onConfirmPayment={handleConfirmPayment}
-          onClose={() => { setShowOrderModal(false); setViewingOrder(null); }}
+          onClose={() => { setShowOrderModal(false); setViewingOrder(null); setReceiptFile(null); }}
         />
       )}
 
