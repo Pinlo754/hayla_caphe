@@ -24,6 +24,24 @@ import OrderDetailModal from '@/components/pos/OrderDetailModal';
 
 import type { ActiveTab, Customer, DiscountType, MenuItem, Order, PaymentMethod, ReceiptData } from '@/types/pos.types';
 
+// Trigger a local download of the captured transfer receipt
+function downloadReceiptLocally(file: File, tableId: number) {
+  try {
+    const url = URL.createObjectURL(file);
+    const ext = file.name?.split('.').pop()?.toLowerCase() || 'jpg';
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `bienlai-ban${tableId}-${stamp}.${ext}`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  } catch (e) {
+    console.warn('Không thể lưu ảnh biên lai về máy:', e);
+  }
+}
+
 export default function MobilePOS() {
   const { cart, selectedTable, selectTable, clearCart, setCart } = usePosStore();
 
@@ -173,6 +191,9 @@ export default function MobilePOS() {
         await createOrder({ ...orderData, createdAt: new Date().toISOString() });
       }
 
+      // Order saved — save the receipt photo to the local device too
+      if (receiptFile) downloadReceiptLocally(receiptFile, selectedTable);
+
       await printReceipt({
         tableId: selectedTable,
         items: cart,
@@ -226,6 +247,9 @@ export default function MobilePOS() {
         paymentMethod,
         ...(receiptImage ? { receiptImage } : {}),
       });
+
+      // Order paid — save the receipt photo to the local device too
+      if (receiptFile && viewingOrder) downloadReceiptLocally(receiptFile, viewingOrder.tableId);
 
       if (viewingOrder) {
         const orderSubtotal = viewingOrder.items.reduce((s, i) => s + i.price * i.quantity, 0);
