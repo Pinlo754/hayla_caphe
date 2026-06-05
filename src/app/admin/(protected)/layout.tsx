@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { BarChart2, Coffee, ClipboardList, Layers, Users, LogOut, Menu, X } from 'lucide-react';
+import { BarChart2, Coffee, ClipboardList, Layers, Users, Settings, LogOut, Menu, X } from 'lucide-react';
 
 const NAV = [
   { href: '/admin/dashboard', label: 'Dashboard', icon: BarChart2 },
@@ -11,6 +11,7 @@ const NAV = [
   { href: '/admin/orders', label: 'Đơn hàng', icon: ClipboardList },
   { href: '/admin/toppings', label: 'Topping', icon: Layers },
   { href: '/admin/customers', label: 'Khách hàng', icon: Users },
+  { href: '/admin/settings', label: 'Cài đặt', icon: Settings },
 ];
 
 export default function ProtectedLayout({ children }: { children: React.ReactNode }) {
