@@ -7,7 +7,7 @@ import type { ToppingItem } from '@/app/lib/firebaseToppings';
 import type { MenuItem } from '@/types/pos.types';
 import { Plus, Pencil, Trash2, X, Check, Search, ImageOff } from 'lucide-react';
 
-const CATEGORIES = ['Coffee', 'Tea', 'Milk Tea', 'Yogurt', 'Matcha', 'Cacao', 'Fruit Juice'];
+const CATEGORIES = ['Coffee', 'Tea', 'Milk Tea', 'Yogurt', 'Matcha', 'Cacao', 'Fruit Juice', 'Other'];
 
 type FormState = {
   name: string;
