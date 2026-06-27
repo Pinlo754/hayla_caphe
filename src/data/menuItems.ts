@@ -23,6 +23,7 @@ export const JUICE_COMBOS = [
   'Cam, dứa, lê, gừng',
   'Dưa leo, dứa, cam',
   'Cà rốt, táo, dứa, hạt chia',
+  'Khác',
 ] as const;
 
 export const menuItems: MenuItem[] = [
