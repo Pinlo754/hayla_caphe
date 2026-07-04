@@ -10,9 +10,10 @@ import ItemConfigModal from './ItemConfigModal';
 interface Props {
   products: MenuItem[];
   toppings: ToppingItem[];
+  juiceCombos?: string[];
 }
 
-export default function MenuTab({ products, toppings }: Props) {
+export default function MenuTab({ products, toppings, juiceCombos }: Props) {
   const { selectedTable, addToCart } = usePosStore();
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [configItem, setConfigItem] = useState<MenuItem | null>(null);
@@ -88,6 +89,7 @@ export default function MenuTab({ products, toppings }: Props) {
         <ItemConfigModal
           item={configItem}
           toppings={toppings}
+          juiceCombos={juiceCombos}
           onClose={() => setConfigItem(null)}
           onAdd={handleAdd}
         />

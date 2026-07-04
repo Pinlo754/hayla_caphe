@@ -2,8 +2,8 @@
 
 import { useMemo, useState } from 'react';
 import {
-  BarChart,
-  Bar,
+  AreaChart,
+  Area,
   XAxis,
   YAxis,
   Tooltip,
@@ -20,10 +20,11 @@ import {
   Banknote,
   BarChart2,
   RefreshCw,
+  CalendarDays,
 } from 'lucide-react';
 import type { Order, PaymentMethod } from '@/types/pos.types';
 
-type Period = 'hour' | 'day' | 'week' | 'month';
+type Period = 'hour' | 'day' | 'week' | 'month' | 'custom';
 type PaymentFilter = 'all' | PaymentMethod;
 
 interface Props {
@@ -49,6 +50,10 @@ function startOfDay(d: Date) {
 export default function DashboardTab({ orders, isLoading, onRefresh }: Props) {
   const [period, setPeriod] = useState<Period>('day');
   const [paymentFilter, setPaymentFilter] = useState<PaymentFilter>('all');
+  const today = new Date().toISOString().split('T')[0];
+  const sevenDaysAgo = (() => { const d = new Date(); d.setDate(d.getDate() - 6); return d.toISOString().split('T')[0]; })();
+  const [dateFrom, setDateFrom] = useState(sevenDaysAgo);
+  const [dateTo, setDateTo] = useState(today);
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [search, setSearch] = useState('');
 
@@ -141,24 +146,52 @@ export default function DashboardTab({ orders, isLoading, onRefresh }: Props) {
     }
 
     // month
-    const months = Array.from({ length: 12 }, (_, i) => {
-      const d = new Date();
-      d.setMonth(d.getMonth() - (11 - i));
+    if (period === 'month') {
+      const months = Array.from({ length: 12 }, (_, i) => {
+        const d = new Date();
+        d.setMonth(d.getMonth() - (11 - i));
+        return {
+          label: `T${d.getMonth() + 1}`,
+          month: d.getMonth(),
+          year: d.getFullYear(),
+          revenue: 0,
+          orders: 0,
+        };
+      });
+      completedOrders.forEach((o) => {
+        const d = new Date(o.createdAt);
+        const slot = months.find((m) => m.month === d.getMonth() && m.year === d.getFullYear());
+        if (slot) { slot.revenue += o.totalPrice; slot.orders++; }
+      });
+      return months;
+    }
+
+    // custom date range
+    const from = new Date(dateFrom);
+    from.setHours(0, 0, 0, 0);
+    const to = new Date(dateTo);
+    to.setHours(23, 59, 59, 999);
+    if (from > to) return [];
+    const dayMs = 86400000;
+    const dayCount = Math.round((to.getTime() - from.getTime()) / dayMs) + 1;
+    const days = Array.from({ length: Math.min(dayCount, 180) }, (_, i) => {
+      const d = new Date(from.getTime() + i * dayMs);
       return {
-        label: `T${d.getMonth() + 1}`,
-        month: d.getMonth(),
-        year: d.getFullYear(),
+        label: `${d.getDate()}/${d.getMonth() + 1}`,
+        dateStr: d.toDateString(),
         revenue: 0,
         orders: 0,
       };
     });
     completedOrders.forEach((o) => {
-      const d = new Date(o.createdAt);
-      const slot = months.find((m) => m.month === d.getMonth() && m.year === d.getFullYear());
-      if (slot) { slot.revenue += o.totalPrice; slot.orders++; }
+      const od = new Date(o.createdAt);
+      if (od >= from && od <= to) {
+        const slot = days.find((d) => d.dateStr === od.toDateString());
+        if (slot) { slot.revenue += o.totalPrice; slot.orders++; }
+      }
     });
-    return months;
-  }, [completedOrders, period]);
+    return days;
+  }, [completedOrders, period, dateFrom, dateTo]);
 
   // ─── Top items ────────────────────────────────────────────────────
   const topItems = useMemo(() => {
@@ -192,6 +225,8 @@ export default function DashboardTab({ orders, isLoading, onRefresh }: Props) {
   }, [orders, paymentFilter, categoryFilter, search]);
 
   const maxRevenue = Math.max(...chartData.map((d) => d.revenue), 1);
+  const chartTotal = chartData.reduce((s, d) => s + d.revenue, 0);
+  const chartOrderCount = chartData.reduce((s, d) => s + d.orders, 0);
 
   const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: { value: number }[]; label?: string }) => {
     if (!active || !payload?.length) return null;
@@ -266,34 +301,74 @@ export default function DashboardTab({ orders, isLoading, onRefresh }: Props) {
 
       {/* ── Revenue chart ── */}
       <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
-        <div className="flex justify-between items-center mb-3">
-          <h3 className="text-sm text-gray-700">Doanh thu</h3>
-          <div className="flex gap-1">
-            {(['hour', 'day', 'week', 'month'] as Period[]).map((p) => (
+        {/* Header */}
+        <div className="flex justify-between items-start mb-1">
+          <div>
+            <h3 className="text-sm font-medium text-gray-700">Doanh thu</h3>
+            <p className="text-xl font-bold text-orange-500 mt-0.5">{fmtMoney(chartTotal)}đ</p>
+            <p className="text-[10px] text-gray-400">{chartOrderCount} đơn</p>
+          </div>
+          {/* Period pills */}
+          <div className="flex flex-wrap gap-1 justify-end max-w-45">
+            {([
+              { key: 'hour', label: 'Giờ' },
+              { key: 'day', label: '7 ngày' },
+              { key: 'week', label: 'Tuần' },
+              { key: 'month', label: 'Tháng' },
+              { key: 'custom', label: <CalendarDays size={11} /> },
+            ] as { key: Period; label: React.ReactNode }[]).map(({ key, label }) => (
               <button
-                key={p}
-                onClick={() => setPeriod(p)}
-                className={`text-[10px] px-2 py-1 rounded-lg font-bold transition-all ${
-                  period === p
-                    ? 'bg-orange-500 text-white'
-                    : 'bg-gray-100 text-gray-400'
+                key={key}
+                onClick={() => setPeriod(key)}
+                className={`flex items-center text-[10px] px-2 py-1 rounded-lg font-bold transition-all ${
+                  period === key ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-400'
                 }`}
               >
-                {p === 'hour' ? 'Giờ' : p === 'day' ? 'Ngày' : p === 'week' ? 'Tuần' : 'Tháng'}
+                {label}
               </button>
             ))}
           </div>
         </div>
 
+        {/* Custom date range picker */}
+        {period === 'custom' && (
+          <div className="flex items-center gap-2 my-3 p-2 bg-orange-50 rounded-xl">
+            <CalendarDays size={14} className="text-orange-400 shrink-0" />
+            <input
+              type="date"
+              value={dateFrom}
+              max={dateTo}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="flex-1 text-xs bg-transparent outline-none text-gray-700"
+            />
+            <span className="text-gray-300 text-xs">→</span>
+            <input
+              type="date"
+              value={dateTo}
+              min={dateFrom}
+              max={today}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="flex-1 text-xs bg-transparent outline-none text-gray-700"
+            />
+          </div>
+        )}
+
+        {/* Area chart */}
         <ResponsiveContainer width="100%" height={160}>
-          <BarChart data={chartData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+          <AreaChart data={chartData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+            <defs>
+              <linearGradient id="revenueGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#f97316" stopOpacity={0.25} />
+                <stop offset="95%" stopColor="#f97316" stopOpacity={0} />
+              </linearGradient>
+            </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
             <XAxis
               dataKey="label"
               tick={{ fontSize: 9, fill: '#9ca3af' }}
               axisLine={false}
               tickLine={false}
-              interval={period === 'hour' ? 3 : 0}
+              interval={period === 'hour' ? 3 : period === 'custom' && chartData.length > 14 ? Math.ceil(chartData.length / 7) - 1 : 0}
             />
             <YAxis
               tick={{ fontSize: 9, fill: '#9ca3af' }}
@@ -302,9 +377,17 @@ export default function DashboardTab({ orders, isLoading, onRefresh }: Props) {
               tickFormatter={(v) => fmtMoney(v)}
               domain={[0, maxRevenue * 1.2]}
             />
-            <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(249,115,22,0.08)' }} />
-            <Bar dataKey="revenue" fill="#f97316" radius={[4, 4, 0, 0]} maxBarSize={32} />
-          </BarChart>
+            <Tooltip content={<CustomTooltip />} cursor={{ stroke: '#f97316', strokeWidth: 1, strokeDasharray: '4 2' }} />
+            <Area
+              type="monotone"
+              dataKey="revenue"
+              stroke="#f97316"
+              strokeWidth={2}
+              fill="url(#revenueGrad)"
+              dot={false}
+              activeDot={{ r: 4, fill: '#f97316', strokeWidth: 0 }}
+            />
+          </AreaChart>
         </ResponsiveContainer>
       </div>
 
