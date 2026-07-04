@@ -28,6 +28,13 @@ export interface Discount {
   amount: number;
 }
 
+export interface CustomerInfo {
+  name: string;
+  phone: string;
+  address: string;
+  note?: string;
+}
+
 export interface Order {
   id: string;
   tableId: number;
@@ -39,6 +46,9 @@ export interface Order {
   receiptImage?: string;   // URL of transfer receipt photo (required for transfer)
   createdAt: string;
   updatedAt?: string;
+  // Online order fields
+  orderType?: 'dine-in' | 'online';
+  customerInfo?: CustomerInfo;
 }
 
 export interface Customer {
