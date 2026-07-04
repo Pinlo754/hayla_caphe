@@ -10,6 +10,7 @@ import { getOrders, createOrder, updateOrder } from '@/app/lib/firebaseOrders';
 import { getMenuItems } from '@/app/lib/firebaseMenu';
 import { getToppings } from '@/app/lib/firebaseToppings';
 import type { ToppingItem } from '@/app/lib/firebaseToppings';
+import { getActiveJuiceCombos } from '@/app/lib/firebaseJuiceCombos';
 import { addPoints } from '@/app/lib/firebaseCustomers';
 import { uploadReceiptImage } from '@/app/lib/firebaseStorage';
 import { getPosSettings } from '@/app/lib/firebaseSettings';
@@ -56,6 +57,7 @@ export default function MobilePOS() {
 
   const [menuData, setMenuData] = useState<MenuItem[]>([]);
   const [toppingsData, setToppingsData] = useState<ToppingItem[]>([]);
+  const [juiceCombosData, setJuiceCombosData] = useState<string[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [autoDownloadReceipt, setAutoDownloadReceipt] = useState(true);
@@ -81,6 +83,7 @@ export default function MobilePOS() {
         setMenuData(fallback);
       });
     getToppings().then(setToppingsData).catch(() => {});
+    getActiveJuiceCombos().then(setJuiceCombosData).catch(() => {});
     getPosSettings().then((s) => setAutoDownloadReceipt(s.autoDownloadReceipt));
   }, []);
 
@@ -301,7 +304,7 @@ export default function MobilePOS() {
           />
         )}
 
-        {activeTab === 'menu' && <MenuTab products={menuData} toppings={toppingsData} />}
+        {activeTab === 'menu' && <MenuTab products={menuData} toppings={toppingsData} juiceCombos={juiceCombosData} />}
 
         {activeTab === 'orders' && (
           <OrdersTab
