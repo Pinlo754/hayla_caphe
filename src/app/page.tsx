@@ -21,6 +21,7 @@ import TableGrid from '@/components/pos/TableGrid';
 import MenuTab from '@/components/pos/MenuTab';
 import OrdersTab from '@/components/pos/OrdersTab';
 import DashboardTab from '@/components/pos/DashboardTab';
+import StatsTab from '@/components/pos/StatsTab';
 import CartDrawer from '@/components/pos/CartDrawer';
 import OrderDetailModal from '@/components/pos/OrderDetailModal';
 
@@ -321,6 +322,8 @@ export default function MobilePOS() {
             onRefresh={fetchOrders}
           />
         )}
+
+        {activeTab === 'stats' && <StatsTab />}
       </main>
 
       {cart.length > 0 && activeTab === 'menu' && (

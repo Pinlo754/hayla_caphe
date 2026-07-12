@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getZaloConfig, getValidAccessToken } from '@/app/lib/firebaseZaloTokens';
+import { getAdminDb } from '@/app/lib/firebaseAdminApp';
 import type { CartItem } from '@/types/pos.types';
+
+const FB_API = 'https://graph.facebook.com/v23.0';
 
 interface NotifyOrderPayload {
   orderId: string;
@@ -13,10 +15,23 @@ interface NotifyOrderPayload {
   paymentMethod: 'cash' | 'transfer';
 }
 
+interface FacebookConfig {
+  enabled: boolean;
+  pageAccessToken: string;
+  recipientPsids: string[];
+}
+
+async function getFbConfig(): Promise<FacebookConfig | null> {
+  const db = getAdminDb();
+  const snap = await db.collection('settings').doc('facebookNotify').get();
+  if (!snap.exists) return null;
+  return snap.data() as FacebookConfig;
+}
+
 function buildMessage(p: NotifyOrderPayload): string {
   const itemLines = p.items
     .map((i) => {
-      let line = `  • ${i.quantity}× ${i.name}`;
+      let line = `• ${i.quantity}× ${i.name}`;
       if (i.size) line += ` [${i.size}]`;
       if (i.combo) line += ` + ${i.combo}`;
       if (i.toppings?.length) line += ` (${i.toppings.join(', ')})`;
@@ -38,58 +53,78 @@ function buildMessage(p: NotifyOrderPayload): string {
     `🛎 ĐƠN ONLINE MỚI — #${p.orderId.slice(-8).toUpperCase()}`,
     `🕐 ${stamp}`,
     ``,
-    `👤 Khách: ${p.customerName}`,
-    `📞 SĐT: ${p.customerPhone}`,
-    `📍 Địa chỉ: ${p.customerAddress}`,
-    ...(p.customerNote ? [`💬 Ghi chú: ${p.customerNote}`] : []),
+    `👤 ${p.customerName}`,
+    `📞 ${p.customerPhone}`,
+    `📍 ${p.customerAddress}`,
+    ...(p.customerNote ? [`💬 ${p.customerNote}`] : []),
     ``,
-    `🧾 Đơn hàng:`,
     itemLines,
     ``,
     `💰 Tổng: ${p.total.toLocaleString('vi-VN')}đ`,
-    `💳 Thanh toán: ${payment}`,
+    `💳 ${payment}`,
   ].join('\n');
+}
+
+async function sendToOne(psid: string, text: string, token: string): Promise<string | null> {
+  const res = await fetch(`${FB_API}/me/messages`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      recipient: { id: psid },
+      messaging_type: 'UPDATE',
+      message: { text },
+    }),
+  });
+
+  const data = await res.json();
+  if (data.error) {
+    return `PSID ${psid}: ${data.error.message} (code ${data.error.code})`;
+  }
+  return null;
 }
 
 export async function POST(req: NextRequest) {
   try {
     const body: NotifyOrderPayload = await req.json();
 
-    const cfg = await getZaloConfig();
+    const cfg = await getFbConfig();
     if (!cfg?.enabled) {
       return NextResponse.json({ ok: true, skipped: true, reason: 'disabled' });
     }
-    if (!cfg.groupId) {
-      return NextResponse.json({ ok: false, error: 'Chưa cấu hình Group ID Zalo' }, { status: 400 });
-    }
 
-    const accessToken = await getValidAccessToken();
-    if (!accessToken) {
-      return NextResponse.json({ ok: false, error: 'Không lấy được access token Zalo' }, { status: 500 });
+    const psids = cfg.recipientPsids?.filter(Boolean) ?? [];
+    if (!cfg.pageAccessToken) {
+      return NextResponse.json(
+        { ok: false, error: 'Chưa cấu hình Page Access Token' },
+        { status: 400 }
+      );
+    }
+    if (psids.length === 0) {
+      return NextResponse.json(
+        { ok: false, error: 'Chưa có PSID nhân viên nào trong danh sách' },
+        { status: 400 }
+      );
     }
 
     const text = buildMessage(body);
 
-    const res = await fetch('https://openapi.zalo.me/v3.0/oa/message/group/text', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'access_token': accessToken,
-      },
-      body: JSON.stringify({
-        recipient: { group_id: cfg.groupId },
-        message: { text },
-      }),
-    });
+    const errors = (
+      await Promise.all(psids.map((psid) => sendToOne(psid, text, cfg.pageAccessToken)))
+    ).filter(Boolean) as string[];
 
-    const data = await res.json();
-
-    if (data.error !== 0) {
-      console.error('[notify-order] Zalo API error:', data);
-      return NextResponse.json({ ok: false, error: data.message ?? 'Zalo API lỗi', data }, { status: 502 });
+    if (errors.length === psids.length) {
+      return NextResponse.json({ ok: false, error: errors.join('; ') }, { status: 502 });
     }
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({
+      ok: true,
+      sent: psids.length - errors.length,
+      failed: errors.length,
+      ...(errors.length > 0 ? { errors } : {}),
+    });
   } catch (err) {
     console.error('[notify-order] Exception:', err);
     return NextResponse.json(
