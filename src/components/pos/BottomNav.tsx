@@ -1,6 +1,6 @@
 'use client';
 
-import { LayoutDashboard, Coffee, ClipboardList, BarChart2 } from 'lucide-react';
+import { LayoutDashboard, Coffee, ClipboardList, BarChart2, BookCheck } from 'lucide-react';
 import { ActiveTab } from '@/types/pos.types';
 
 interface Props {
@@ -14,6 +14,7 @@ export default function BottomNav({ activeTab, onTabChange }: Props) {
     { key: 'menu', icon: <Coffee size={22} />, label: 'Menu' },
     { key: 'orders', icon: <ClipboardList size={22} />, label: 'Đơn hàng' },
     { key: 'dashboard', icon: <BarChart2 size={22} />, label: 'Thống kê' },
+    { key: 'stats', icon: <BookCheck size={22} />, label: 'Chốt sổ' },
   ];
 
   return (

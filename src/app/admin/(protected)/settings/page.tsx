@@ -2,11 +2,14 @@
 
 import { useEffect, useState } from 'react';
 import { getPosSettings, updatePosSettings } from '@/app/lib/firebaseSettings';
-import { getZaloConfig, saveZaloConfig } from '@/app/lib/firebaseZaloTokens';
-import { Download, Loader2, Check, MessageCircle, Bell, BellOff, TestTube, Eye, EyeOff, RefreshCw } from 'lucide-react';
+import { getFacebookConfig, saveFacebookConfig } from '@/app/lib/firebaseFacebookNotify';
+import {
+  Download, Loader2, Check, Facebook, Bell, BellOff,
+  TestTube, Eye, EyeOff, Save, AlertCircle, Plus, X, UserCircle2,
+} from 'lucide-react';
 
 export default function AdminSettingsPage() {
-  // ── Receipt auto-download ─────────────────────────────────────────────
+  // ── Receipt auto-download ──────────────────────────────────────────────
   const [autoDownload, setAutoDownload] = useState(true);
   const [posLoading, setPosLoading] = useState(true);
   const [posSaving, setPosSaving] = useState(false);
@@ -32,59 +35,70 @@ export default function AdminSettingsPage() {
     }
   };
 
-  // ── Zalo Integration ──────────────────────────────────────────────────
-  const [zaloLoading, setZaloLoading] = useState(true);
-  const [zaloEnabled, setZaloEnabled] = useState(false);
-  const [groupId, setGroupId] = useState('');
-  const [refreshToken, setRefreshToken] = useState('');
+  // ── Facebook Messenger notification ───────────────────────────────────
+  const [fbLoading, setFbLoading] = useState(true);
+  const [fbEnabled, setFbEnabled] = useState(false);
+  const [pageToken, setPageToken] = useState('');
   const [showToken, setShowToken] = useState(false);
-  const [zaloSaving, setZaloSaving] = useState(false);
-  const [zaloSaved, setZaloSaved] = useState(false);
-  const [zaloError, setZaloError] = useState('');
+  const [hasToken, setHasToken] = useState(false);
+  const [psids, setPsids] = useState<string[]>([]);
+  const [newPsid, setNewPsid] = useState('');
+  const [fbSaving, setFbSaving] = useState(false);
+  const [fbSaved, setFbSaved] = useState(false);
+  const [fbError, setFbError] = useState('');
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; msg: string } | null>(null);
 
   useEffect(() => {
-    getZaloConfig()
+    getFacebookConfig()
       .then((cfg) => {
         if (cfg) {
-          setZaloEnabled(cfg.enabled ?? false);
-          setGroupId(cfg.groupId ?? '');
-          // Don't pre-fill refresh token — show placeholder instead for security
+          setFbEnabled(cfg.enabled ?? false);
+          setHasToken(!!cfg.pageAccessToken);
+          setPsids(cfg.recipientPsids ?? []);
         }
       })
-      .finally(() => setZaloLoading(false));
+      .finally(() => setFbLoading(false));
   }, []);
 
-  const handleZaloSave = async () => {
-    setZaloError('');
-    if (!groupId.trim()) { setZaloError('Vui lòng nhập Group ID'); return; }
-    if (!refreshToken.trim() && zaloEnabled) { setZaloError('Vui lòng nhập Refresh Token để bật thông báo'); return; }
-    setZaloSaving(true);
-    setZaloSaved(false);
+  const addPsid = () => {
+    const v = newPsid.trim().replace(/\D/g, '');
+    if (!v) return;
+    if (psids.includes(v)) { setNewPsid(''); return; }
+    setPsids([...psids, v]);
+    setNewPsid('');
+  };
+
+  const removePsid = (p: string) => setPsids(psids.filter((x) => x !== p));
+
+  const handleFbSave = async () => {
+    setFbError('');
+    if (!pageToken.trim() && !hasToken) { setFbError('Vui lòng nhập Page Access Token'); return; }
+    if (psids.length === 0) { setFbError('Thêm ít nhất 1 PSID nhân viên'); return; }
+    setFbSaving(true);
+    setFbSaved(false);
     try {
-      const patch: Record<string, unknown> = {
-        enabled: zaloEnabled,
-        groupId: groupId.trim(),
+      const patch: Parameters<typeof saveFacebookConfig>[0] = {
+        enabled: fbEnabled,
+        recipientPsids: psids,
       };
-      if (refreshToken.trim()) {
-        // Reset the stored access token so next send triggers a fresh refresh
-        patch.refreshToken = refreshToken.trim();
-        patch.accessToken = '';
-        patch.expiresAt = 0;
+      if (pageToken.trim()) {
+        patch.pageAccessToken = pageToken.trim();
+        patch.pageId = ''; // pageId not needed for /me/messages
       }
-      await saveZaloConfig(patch as Parameters<typeof saveZaloConfig>[0]);
-      setRefreshToken(''); // clear field after save
-      setZaloSaved(true);
-      setTimeout(() => setZaloSaved(false), 2500);
+      await saveFacebookConfig(patch);
+      if (pageToken.trim()) setHasToken(true);
+      setPageToken('');
+      setFbSaved(true);
+      setTimeout(() => setFbSaved(false), 2500);
     } catch {
-      setZaloError('Lưu thất bại, vui lòng thử lại');
+      setFbError('Lưu thất bại, vui lòng thử lại');
     } finally {
-      setZaloSaving(false);
+      setFbSaving(false);
     }
   };
 
-  const handleZaloTest = async () => {
+  const handleFbTest = async () => {
     setTesting(true);
     setTestResult(null);
     try {
@@ -96,15 +110,20 @@ export default function AdminSettingsPage() {
           customerName: 'Khách test',
           customerPhone: '0900000000',
           customerAddress: '123 Đường Test, TP.HCM',
-          customerNote: 'Đây là tin nhắn thử từ admin Hay là cà phê.',
-          items: [{ name: 'Cà phê sữa', quantity: 1, price: 35000, size: 'M' }],
-          total: 35000,
+          customerNote: 'Đây là tin nhắn thử nghiệm.',
+          items: [{ name: 'Cà phê sữa đá', quantity: 2, price: 35000, size: 'M' }],
+          total: 70000,
           paymentMethod: 'cash',
         }),
       });
       const data = await res.json();
       if (data.ok) {
-        setTestResult({ ok: true, msg: data.skipped ? 'Thông báo đang tắt (skipped).' : 'Gửi thử thành công! Kiểm tra group Zalo.' });
+        setTestResult({
+          ok: true,
+          msg: data.skipped
+            ? 'Thông báo đang tắt. Hãy bật và lưu trước.'
+            : `Đã gửi thành công đến ${data.sent}/${psids.length} nhân viên.`,
+        });
       } else {
         setTestResult({ ok: false, msg: data.error ?? 'Lỗi không xác định' });
       }
@@ -124,7 +143,6 @@ export default function AdminSettingsPage() {
         <div className="px-5 py-4">
           <h2 className="text-sm font-bold text-gray-500 uppercase tracking-widest">Thanh toán</h2>
         </div>
-
         <div className="px-5 py-4 flex items-center justify-between gap-4">
           <div className="flex items-start gap-3">
             <div className="w-9 h-9 bg-blue-50 rounded-xl flex items-center justify-center shrink-0 mt-0.5">
@@ -137,7 +155,6 @@ export default function AdminSettingsPage() {
               </p>
             </div>
           </div>
-
           <div className="flex items-center gap-2 shrink-0">
             {posSaving && <Loader2 size={14} className="text-gray-400 animate-spin" />}
             {posSaved && !posSaving && <Check size={14} className="text-green-500" />}
@@ -147,100 +164,103 @@ export default function AdminSettingsPage() {
               <button
                 onClick={handleToggle}
                 disabled={posSaving}
-                className={`relative w-11 h-6 rounded-full transition-colors duration-200 disabled:opacity-60 ${
-                  autoDownload ? 'bg-orange-500' : 'bg-gray-200'
-                }`}
+                className={`relative w-11 h-6 rounded-full transition-colors duration-200 disabled:opacity-60 ${autoDownload ? 'bg-orange-500' : 'bg-gray-200'}`}
               >
                 <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${autoDownload ? 'translate-x-5' : 'translate-x-0'}`} />
               </button>
             )}
           </div>
         </div>
-
         <div className="px-5 py-3 bg-gray-50">
           <p className="text-xs text-gray-400">
             Trạng thái:{' '}
             <span className={`font-bold ${autoDownload ? 'text-green-600' : 'text-gray-500'}`}>
-              {posLoading ? '...' : autoDownload ? 'Đang bật — ảnh sẽ tự tải về máy' : 'Đã tắt — ảnh chỉ lưu trên Firebase'}
+              {posLoading ? '...' : autoDownload ? 'Đang bật' : 'Đã tắt'}
             </span>
           </p>
         </div>
       </div>
 
-      {/* ── Zalo Integration section ───────────────────────────────── */}
+      {/* ── Facebook Messenger section ──────────────────────────────── */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm divide-y divide-gray-50">
         <div className="px-5 py-4 flex items-center justify-between">
-          <h2 className="text-sm font-bold text-gray-500 uppercase tracking-widest">Thông báo Zalo</h2>
-          {!zaloLoading && (
-            <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${zaloEnabled ? 'bg-green-50 text-green-600' : 'bg-gray-100 text-gray-400'}`}>
-              {zaloEnabled ? 'Đang bật' : 'Đã tắt'}
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 bg-[#1877F2]/10 rounded-xl flex items-center justify-center">
+              <Facebook size={16} className="text-[#1877F2]" />
+            </div>
+            <div>
+              <h2 className="text-sm font-bold text-gray-700">Thông báo qua Messenger</h2>
+              <p className="text-xs text-gray-400">Nhắn tin trực tiếp đến nhân viên khi có đơn online</p>
+            </div>
+          </div>
+          {!fbLoading && (
+            <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${fbEnabled ? 'bg-green-50 text-green-600' : 'bg-gray-100 text-gray-400'}`}>
+              {fbEnabled ? 'Đang bật' : 'Đã tắt'}
             </span>
           )}
         </div>
 
-        {/* Info banner */}
-        <div className="px-5 py-4 bg-blue-50 border-b border-blue-100">
-          <div className="flex items-start gap-3">
-            <MessageCircle size={18} className="text-blue-500 mt-0.5 shrink-0" />
-            <div className="text-xs text-blue-700 space-y-1 leading-relaxed">
-              <p className="font-semibold">Yêu cầu: Zalo Official Account + GMF Group</p>
-              <p>Để nhận thông báo vào group Zalo, bạn cần:</p>
-              <ol className="list-decimal ml-4 space-y-0.5">
-                <li>Tạo <strong>Zalo Official Account (OA)</strong> tại oa.zalo.me</li>
-                <li>Tạo App trong <strong>Zalo Developers</strong> → lấy App ID & Secret</li>
-                <li>Thêm vào <code className="bg-blue-100 px-1 rounded">.env.local</code>: <code className="bg-blue-100 px-1 rounded">ZALO_APP_ID</code> và <code className="bg-blue-100 px-1 rounded">ZALO_APP_SECRET</code></li>
-                <li>Tạo nhóm <strong>GMF Group</strong> qua Zalo OA → lấy Group ID</li>
-                <li>Thực hiện OAuth2 1 lần → copy <strong>Refresh Token</strong> → dán vào đây</li>
-              </ol>
+        {/* Info */}
+        <div className="px-5 py-4 bg-[#1877F2]/5">
+          <div className="flex items-start gap-2.5">
+            <AlertCircle size={15} className="text-[#1877F2] mt-0.5 shrink-0" />
+            <div className="text-xs text-[#1877F2]/80 space-y-2 leading-relaxed">
+              <div>
+                <p className="font-semibold text-[#1877F2] mb-1">Yêu cầu setup:</p>
+                <ol className="list-decimal ml-4 space-y-0.5">
+                  <li>Tạo Facebook App (loại Business) → thêm sản phẩm <strong>Messenger</strong></li>
+                  <li>Cấp quyền <code className="bg-white/60 px-1 rounded">pages_messaging</code> cho App</li>
+                  <li>Lấy <strong>Long-lived Page Access Token</strong> từ Graph API Explorer</li>
+                  <li>Mỗi nhân viên nhắn 1 tin vào Page → lấy PSID của họ (xem hướng dẫn bên dưới)</li>
+                </ol>
+              </div>
+              <div className="bg-white/50 rounded-lg p-2.5 border border-[#1877F2]/15">
+                <p className="font-semibold text-[#1877F2] mb-1">Cách lấy PSID của nhân viên:</p>
+                <p>Sau khi nhân viên nhắn tin vào Page, vào <strong>Graph API Explorer</strong> và gọi:</p>
+                <code className="block mt-1 bg-white/70 rounded px-2 py-1 text-[#1877F2] font-mono text-[11px] break-all">
+                  GET /me/conversations?fields=participants&access_token=&#123;PAGE_TOKEN&#125;
+                </code>
+                <p className="mt-1">Tìm tên nhân viên trong kết quả → copy trường <strong>"id"</strong> — đó là PSID.</p>
+              </div>
             </div>
           </div>
         </div>
 
-        {zaloLoading ? (
+        {fbLoading ? (
           <div className="px-5 py-8 flex justify-center">
             <Loader2 size={20} className="text-gray-300 animate-spin" />
           </div>
         ) : (
-          <div className="px-5 py-5 space-y-4">
+          <div className="px-5 py-5 space-y-5">
             {/* Enable toggle */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                {zaloEnabled
-                  ? <Bell size={16} className="text-green-500" />
-                  : <BellOff size={16} className="text-gray-400" />
-                }
-                <span className="text-sm font-semibold text-gray-800">Bật thông báo khi có đơn online</span>
+                {fbEnabled ? <Bell size={15} className="text-green-500" /> : <BellOff size={15} className="text-gray-400" />}
+                <span className="text-sm font-semibold text-gray-800">Gửi thông báo khi có đơn online</span>
               </div>
               <button
-                onClick={() => setZaloEnabled(!zaloEnabled)}
-                className={`relative w-11 h-6 rounded-full transition-colors duration-200 ${zaloEnabled ? 'bg-green-500' : 'bg-gray-200'}`}
+                onClick={() => setFbEnabled(!fbEnabled)}
+                className={`relative w-11 h-6 rounded-full transition-colors duration-200 ${fbEnabled ? 'bg-[#1877F2]' : 'bg-gray-200'}`}
               >
-                <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${zaloEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
+                <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${fbEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
               </button>
             </div>
 
-            {/* Group ID */}
+            {/* Page Access Token */}
             <div>
-              <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-1.5">Group ID (GMF Group)</label>
-              <input
-                value={groupId}
-                onChange={(e) => setGroupId(e.target.value)}
-                placeholder="Ví dụ: g8xxxxxxxxxxxxxxxx"
-                className="w-full text-sm border border-gray-200 rounded-xl px-3.5 py-2.5 outline-none focus:border-blue-400 bg-gray-50 text-gray-800 placeholder-gray-300 font-mono"
-              />
-              <p className="text-xs text-gray-400 mt-1 ml-1">Lấy Group ID trong Zalo OA Manager → nhóm GMF đã tạo.</p>
-            </div>
-
-            {/* Refresh token */}
-            <div>
-              <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-1.5">Refresh Token (nhập khi cần cập nhật)</label>
+              <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-1.5">
+                Page Access Token
+                {hasToken && !pageToken && (
+                  <span className="ml-2 text-green-600 font-normal normal-case">✓ Đã có token</span>
+                )}
+              </label>
               <div className="relative">
                 <input
                   type={showToken ? 'text' : 'password'}
-                  value={refreshToken}
-                  onChange={(e) => setRefreshToken(e.target.value)}
-                  placeholder="Dán refresh_token vào đây..."
-                  className="w-full text-sm border border-gray-200 rounded-xl px-3.5 py-2.5 pr-10 outline-none focus:border-blue-400 bg-gray-50 text-gray-800 placeholder-gray-300 font-mono"
+                  value={pageToken}
+                  onChange={(e) => setPageToken(e.target.value)}
+                  placeholder={hasToken ? 'Để trống nếu không đổi token' : 'Dán Long-lived Page Access Token...'}
+                  className="w-full text-sm border border-gray-200 rounded-xl px-3.5 py-2.5 pr-10 outline-none focus:border-[#1877F2]/60 bg-gray-50 text-gray-800 placeholder-gray-300 font-mono"
                 />
                 <button
                   type="button"
@@ -250,28 +270,75 @@ export default function AdminSettingsPage() {
                   {showToken ? <EyeOff size={15} /> : <Eye size={15} />}
                 </button>
               </div>
-              <p className="text-xs text-gray-400 mt-1 ml-1">
-                Bỏ trống nếu không muốn thay đổi token hiện tại. Refresh token Zalo có hiệu lực 90 ngày và tự gia hạn.
+            </div>
+
+            {/* PSID list */}
+            <div>
+              <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-2">
+                Danh sách PSID nhân viên
+                <span className="ml-2 text-gray-400 font-normal normal-case">({psids.length} người)</span>
+              </label>
+
+              {psids.length > 0 && (
+                <div className="space-y-2 mb-2">
+                  {psids.map((p) => (
+                    <div key={p} className="flex items-center gap-2 bg-gray-50 rounded-xl px-3 py-2 border border-gray-100">
+                      <UserCircle2 size={15} className="text-[#1877F2] shrink-0" />
+                      <span className="flex-1 text-sm font-mono text-gray-700">{p}</span>
+                      <button
+                        onClick={() => removePsid(p)}
+                        className="text-gray-300 hover:text-red-400 transition p-0.5"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Add PSID input */}
+              <div className="flex gap-2">
+                <input
+                  value={newPsid}
+                  onChange={(e) => setNewPsid(e.target.value.replace(/\D/g, ''))}
+                  onKeyDown={(e) => e.key === 'Enter' && addPsid()}
+                  placeholder="Nhập PSID (chỉ số)..."
+                  inputMode="numeric"
+                  className="flex-1 text-sm border border-gray-200 rounded-xl px-3.5 py-2.5 outline-none focus:border-[#1877F2]/60 bg-gray-50 text-gray-800 placeholder-gray-300 font-mono"
+                />
+                <button
+                  onClick={addPsid}
+                  disabled={!newPsid.trim()}
+                  className="flex items-center gap-1.5 bg-[#1877F2]/10 hover:bg-[#1877F2]/20 text-[#1877F2] text-sm font-bold px-3.5 py-2.5 rounded-xl transition disabled:opacity-40"
+                >
+                  <Plus size={15} />
+                  Thêm
+                </button>
+              </div>
+              <p className="text-xs text-gray-400 mt-1.5 ml-1">
+                PSID là dãy số dài ~15 chữ số. Nhấn Enter hoặc nút Thêm để thêm vào danh sách.
               </p>
             </div>
 
-            {zaloError && (
-              <p className="text-xs text-red-500 font-medium">{zaloError}</p>
+            {fbError && (
+              <p className="text-xs text-red-500 font-medium flex items-center gap-1.5">
+                <AlertCircle size={12} /> {fbError}
+              </p>
             )}
 
             {/* Actions */}
             <div className="flex items-center gap-3 pt-1">
               <button
-                onClick={handleZaloSave}
-                disabled={zaloSaving}
-                className="flex items-center gap-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-bold px-4 py-2.5 rounded-xl transition disabled:opacity-60"
+                onClick={handleFbSave}
+                disabled={fbSaving}
+                className="flex items-center gap-2 bg-[#1877F2] hover:bg-[#1877F2]/90 text-white text-sm font-bold px-4 py-2.5 rounded-xl transition disabled:opacity-60"
               >
-                {zaloSaving ? <Loader2 size={14} className="animate-spin" /> : zaloSaved ? <Check size={14} /> : <RefreshCw size={14} />}
-                {zaloSaved ? 'Đã lưu!' : 'Lưu cấu hình'}
+                {fbSaving ? <Loader2 size={14} className="animate-spin" /> : fbSaved ? <Check size={14} /> : <Save size={14} />}
+                {fbSaved ? 'Đã lưu!' : 'Lưu cấu hình'}
               </button>
 
               <button
-                onClick={handleZaloTest}
+                onClick={handleFbTest}
                 disabled={testing}
                 className="flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-bold px-4 py-2.5 rounded-xl transition disabled:opacity-60"
               >
@@ -281,8 +348,9 @@ export default function AdminSettingsPage() {
             </div>
 
             {testResult && (
-              <div className={`text-xs font-medium px-3 py-2 rounded-xl ${testResult.ok ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>
-                {testResult.ok ? '✓ ' : '✗ '}{testResult.msg}
+              <div className={`text-xs font-medium px-3 py-2.5 rounded-xl flex items-start gap-2 ${testResult.ok ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>
+                <span className="shrink-0 mt-px">{testResult.ok ? '✓' : '✗'}</span>
+                <span>{testResult.msg}</span>
               </div>
             )}
           </div>

@@ -62,7 +62,7 @@ export interface Customer {
 }
 
 export type PaymentMethod = 'cash' | 'transfer';
-export type ActiveTab = 'tables' | 'menu' | 'orders' | 'dashboard';
+export type ActiveTab = 'tables' | 'menu' | 'orders' | 'dashboard' | 'stats';
 export type DiscountType = 'percent' | 'fixed';
 
 export interface ReceiptData {
