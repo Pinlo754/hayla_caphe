@@ -25,7 +25,7 @@ interface Props {
   onClose: () => void;
 }
 
-const QUICK_DISCOUNTS = [20, 30, 50, 100];
+const QUICK_DISCOUNTS = [10, 20, 30, 50, 100];
 
 export default function CartDrawer({
   discountType, discountValue, paymentMethod, isProcessing,
