@@ -20,7 +20,7 @@ export default function PosHeader({ activeTab, printerConnected, printerName, on
       <h1 className="font-bold text-orange-600 text-xl tracking-tighter italic">Hay là cà phê</h1>
 
       <div className="flex items-center gap-2">
-        {selectedTable && activeTab !== 'orders' && activeTab !== 'dashboard' && (
+        {selectedTable && activeTab !== 'orders' && activeTab !== 'checklist' && (
           <span className="bg-orange-100 text-orange-700 px-3 py-1 rounded-full text-xs font-bold">
             Bàn {selectedTable}
           </span>

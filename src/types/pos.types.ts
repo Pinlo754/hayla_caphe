@@ -62,8 +62,49 @@ export interface Customer {
 }
 
 export type PaymentMethod = 'cash' | 'transfer';
-export type ActiveTab = 'tables' | 'menu' | 'orders' | 'dashboard' | 'stats';
+export type ActiveTab = 'tables' | 'menu' | 'orders' | 'checklist' | 'stats';
 export type DiscountType = 'percent' | 'fixed';
+
+// ── Task Checklist ────────────────────────────────────────────────
+
+export type TaskPriority = 'high' | 'medium' | 'low';
+export type TaskDay = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
+
+export interface Task {
+  id: string;
+  title: string;
+  description?: string;
+  priority: TaskPriority;
+  scheduledTime: string;   // "HH:MM"
+  days: TaskDay[];         // empty array = every day
+  requirePhoto: boolean;
+  active: boolean;
+  order: number;
+  createdAt: string;
+}
+
+export interface TaskLog {
+  id: string;              // `${YYYY-MM-DD}_${taskId}`
+  taskId: string;
+  date: string;            // "YYYY-MM-DD"
+  status: 'pending' | 'completed';
+  completedAt?: string;
+  completedBy?: string;    // deviceId
+  photoUrl?: string;
+  notifiedAt?: string;
+}
+
+export interface Shift {
+  id: string;
+  deviceId: string;
+  staffName: string;
+  date: string;            // "YYYY-MM-DD"
+  checkInAt: string;
+  checkInPhoto?: string;
+  checkOutAt?: string;
+  checkOutPhoto?: string;
+  active: boolean;
+}
 
 export interface ReceiptData {
   tableId: number;

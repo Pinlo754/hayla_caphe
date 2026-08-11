@@ -20,7 +20,7 @@ import BottomNav from '@/components/pos/BottomNav';
 import TableGrid from '@/components/pos/TableGrid';
 import MenuTab from '@/components/pos/MenuTab';
 import OrdersTab from '@/components/pos/OrdersTab';
-import DashboardTab from '@/components/pos/DashboardTab';
+import ChecklistTab from '@/components/pos/ChecklistTab';
 import StatsTab from '@/components/pos/StatsTab';
 import CartDrawer from '@/components/pos/CartDrawer';
 import OrderDetailModal from '@/components/pos/OrderDetailModal';
@@ -119,7 +119,7 @@ export default function MobilePOS() {
   };
 
   useEffect(() => {
-    if (activeTab === 'orders' || activeTab === 'tables' || activeTab === 'dashboard') {
+    if (activeTab === 'orders' || activeTab === 'tables') {
       fetchOrders();
     }
   }, [activeTab]);
@@ -315,13 +315,7 @@ export default function MobilePOS() {
           />
         )}
 
-        {activeTab === 'dashboard' && (
-          <DashboardTab
-            orders={orders}
-            isLoading={isLoadingOrders}
-            onRefresh={fetchOrders}
-          />
-        )}
+        {activeTab === 'checklist' && <ChecklistTab />}
 
         {activeTab === 'stats' && <StatsTab />}
       </main>

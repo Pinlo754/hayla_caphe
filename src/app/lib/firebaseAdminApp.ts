@@ -14,6 +14,7 @@
 
 import { initializeApp, getApps, cert, type App } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
+import { getMessaging } from 'firebase-admin/messaging';
 
 function getAdminApp(): App {
   if (getApps().length > 0) return getApps()[0];
@@ -31,4 +32,8 @@ function getAdminApp(): App {
 // Named database 'haylacaphe' — khớp với firebase.js client config
 export function getAdminDb() {
   return getFirestore(getAdminApp(), 'haylacaphe');
+}
+
+export function getAdminMessaging() {
+  return getMessaging(getAdminApp());
 }
