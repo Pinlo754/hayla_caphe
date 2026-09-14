@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { getOrders, deleteOrder } from '@/app/lib/firebaseOrders';
 import type { Order } from '@/types/pos.types';
-import { Trash2, RefreshCw, ChevronDown, ChevronUp, Search, Banknote, CreditCard, Globe, UtensilsCrossed, Phone, MapPin, MessageSquare } from 'lucide-react';
+import { Trash2, RefreshCw, ChevronDown, ChevronUp, Search, Banknote, CreditCard, Globe, UtensilsCrossed, Phone, MapPin, MessageSquare, User } from 'lucide-react';
 
 export default function AdminOrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -15,6 +15,7 @@ export default function AdminOrdersPage() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [paymentFilter, setPaymentFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
+  const [staffFilter, setStaffFilter] = useState('all');
 
   const load = () => {
     setLoading(true);
@@ -34,6 +35,11 @@ export default function AdminOrdersPage() {
     }
   };
 
+  const staffOptions = useMemo(
+    () => [...new Set(orders.map((o) => o.staffName).filter((n): n is string => !!n))].sort(),
+    [orders]
+  );
+
   const filtered = useMemo(() => {
     return orders.filter((o) => {
       const isOnline = o.orderType === 'online' || o.tableId === 0;
@@ -42,6 +48,7 @@ export default function AdminOrdersPage() {
       if (paymentFilter !== 'all' && o.paymentMethod !== paymentFilter) return false;
       if (typeFilter === 'online' && !isOnline) return false;
       if (typeFilter === 'dine-in' && isOnline) return false;
+      if (staffFilter !== 'all' && o.staffName !== staffFilter) return false;
       if (search.trim()) {
         const s = search.toLowerCase();
         const matchTable = `bàn ${o.tableId}`.includes(s);
@@ -53,7 +60,7 @@ export default function AdminOrdersPage() {
       }
       return true;
     });
-  }, [orders, statusFilter, paymentFilter, typeFilter, search]);
+  }, [orders, statusFilter, paymentFilter, typeFilter, staffFilter, search]);
 
   const totalRevenue = useMemo(
     () => filtered.filter((o) => o.status !== 'pending').reduce((s, o) => s + o.totalPrice, 0),
@@ -126,6 +133,21 @@ export default function AdminOrdersPage() {
               {icon}{label}
             </button>
           ))}
+          {staffOptions.length > 0 && (
+            <>
+              <div className="w-px bg-gray-200" />
+              <select
+                value={staffFilter}
+                onChange={(e) => setStaffFilter(e.target.value)}
+                className="text-xs px-3 py-1.5 rounded-xl font-bold bg-gray-100 text-gray-500 outline-none"
+              >
+                <option value="all">Mọi nhân viên</option>
+                {staffOptions.map((name) => (
+                  <option key={name} value={name}>{name}</option>
+                ))}
+              </select>
+            </>
+          )}
         </div>
       </div>
 
@@ -172,12 +194,18 @@ export default function AdminOrdersPage() {
                           {order.customerInfo.name} · {order.customerInfo.phone}
                         </p>
                       ) : null}
-                      <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-2">
+                      <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-2 flex-wrap">
                         <span>{new Date(order.createdAt).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
                         {order.paymentMethod && (
                           <span className="flex items-center gap-0.5">
                             {order.paymentMethod === 'cash' ? <Banknote size={10} /> : <CreditCard size={10} />}
                             {order.paymentMethod === 'cash' ? 'Tiền mặt' : 'CK'}
+                          </span>
+                        )}
+                        {order.staffName && (
+                          <span className="flex items-center gap-0.5">
+                            <User size={10} />
+                            {order.staffName}
                           </span>
                         )}
                       </p>
