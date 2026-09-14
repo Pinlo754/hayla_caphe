@@ -38,3 +38,15 @@ export function shiftPeriodOf(hhmm: string): ShiftPeriod {
 export function currentShiftPeriod(now: Date = new Date()): ShiftPeriod {
   return shiftPeriodOf(now.toTimeString().slice(0, 5));
 }
+
+/**
+ * Minutes elapsed since the given shift started — use this (not the raw
+ * "HH:MM" string) to sort tasks in shift order. The night shift starts at
+ * 22:00 and runs past midnight, so a plain string sort would wrongly put
+ * 00:xx/02:xx ahead of 22:xx even though 22:xx happens first.
+ */
+export function minutesIntoShift(hhmm: string, period: ShiftPeriod): number {
+  const mins  = toMinutes(hhmm);
+  const start = BOUNDARIES.find((b) => b.key === period)!.startMin % (24 * 60);
+  return mins >= start ? mins - start : mins + (24 * 60 - start);
+}
