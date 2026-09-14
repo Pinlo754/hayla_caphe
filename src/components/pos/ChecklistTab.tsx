@@ -9,7 +9,7 @@ import { useAuthStore } from '@/store/useAuthStore';
 import { storage } from '@/app/lib/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import CameraPortal from './CameraPortal';
-import { currentShiftPeriod, SHIFT_PERIOD_LABEL } from '@/app/lib/shiftPeriods';
+import { currentShiftPeriod, minutesIntoShift, SHIFT_PERIOD_LABEL } from '@/app/lib/shiftPeriods';
 import type { Task, TaskLog } from '@/types/pos.types';
 
 // ── FCM init (client-only) ────────────────────────────────────────
@@ -301,10 +301,17 @@ export default function ChecklistTab() {
   // Sort strictly by time — no category sections. Tasks already come from
   // getTodayTasks() filtered to the current shift + due-today recurrence
   // (e.g. a "every 2 days" task simply won't appear on an off day).
-  const byHour: Record<string, Task[]> = {};
-  for (const task of [...tasks].sort((a, b) => a.scheduledTime.localeCompare(b.scheduledTime))) {
+  // Sorted by elapsed time SINCE SHIFT START, not the raw clock string —
+  // the night shift runs 22:00→06:00, so 22:xx must lead, not trail 00:xx/02:xx.
+  const shiftNow = currentShiftPeriod();
+  const sortedTasks = [...tasks].sort(
+    (a, b) => minutesIntoShift(a.scheduledTime, shiftNow) - minutesIntoShift(b.scheduledTime, shiftNow)
+  );
+  const byHour = new Map<string, Task[]>();
+  for (const task of sortedTasks) {
     const hour = task.scheduledTime.slice(0, 2) + ':00';
-    (byHour[hour] ??= []).push(task);
+    if (!byHour.has(hour)) byHour.set(hour, []);
+    byHour.get(hour)!.push(task);
   }
 
   return (
@@ -363,26 +370,24 @@ export default function ChecklistTab() {
         </div>
       ) : (
         <div className="space-y-4 pb-4">
-          {Object.entries(byHour)
-            .sort(([a], [b]) => a.localeCompare(b))
-            .map(([hour, hourTasks]) => (
-              <div key={hour}>
-                <p className="text-xs font-bold text-gray-400 uppercase mb-2 flex items-center gap-1">
-                  <Clock size={11} /> {hour}
-                </p>
-                <div className="space-y-2">
-                  {hourTasks.map((task) => (
-                    <TaskCard
-                      key={task.id}
-                      task={task}
-                      log={logs.find((l) => l.taskId === task.id)}
-                      deviceId={deviceId}
-                      onComplete={handleTaskComplete}
-                    />
-                  ))}
-                </div>
+          {[...byHour.entries()].map(([hour, hourTasks]) => (
+            <div key={hour}>
+              <p className="text-xs font-bold text-gray-400 uppercase mb-2 flex items-center gap-1">
+                <Clock size={11} /> {hour}
+              </p>
+              <div className="space-y-2">
+                {hourTasks.map((task) => (
+                  <TaskCard
+                    key={task.id}
+                    task={task}
+                    log={logs.find((l) => l.taskId === task.id)}
+                    deviceId={deviceId}
+                    onComplete={handleTaskComplete}
+                  />
+                ))}
               </div>
-            ))}
+            </div>
+          ))}
         </div>
       )}
 
