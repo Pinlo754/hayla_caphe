@@ -14,7 +14,8 @@ import {
   Timestamp,
   serverTimestamp,
 } from 'firebase/firestore';
-import type { Task, TaskLog, TaskDay } from '@/types/pos.types';
+import type { Task, TaskLog, TaskDay, TaskGroup, TaskRecurrence } from '@/types/pos.types';
+import { currentShiftPeriod, shiftPeriodOf } from './shiftPeriods';
 
 const TASKS_COL = 'tasks';
 const LOGS_COL  = 'taskLogs';
@@ -28,14 +29,27 @@ function currentDayKey(): TaskDay {
   return days[new Date().getDay()];
 }
 
+/** Whole-day difference between two "YYYY-MM-DD" strings (date-only, no TZ drift) */
+function daysBetween(fromDate: string, toDate: string): number {
+  const from = new Date(`${fromDate}T00:00:00Z`).getTime();
+  const to   = new Date(`${toDate}T00:00:00Z`).getTime();
+  return Math.round((to - from) / 86_400_000);
+}
+
 function toTask(id: string, data: Record<string, unknown>): Task {
+  const days = (data.days as TaskDay[]) ?? [];
   return {
     id,
     title:         data.title as string,
     description:   data.description as string | undefined,
     priority:      (data.priority as Task['priority']) ?? 'medium',
+    group:         (data.group as TaskGroup) ?? 'hourly',
     scheduledTime: data.scheduledTime as string,
-    days:          (data.days as TaskDay[]) ?? [],
+    recurrence:    (data.recurrence as TaskRecurrence) ?? (days.length > 0 ? 'weekly' : 'daily'),
+    days,
+    dayOfMonth:    data.dayOfMonth as number | undefined,
+    intervalDays:  data.intervalDays as number | undefined,
+    anchorDate:    data.anchorDate as string | undefined,
     requirePhoto:  (data.requirePhoto as boolean) ?? false,
     active:        (data.active as boolean) ?? true,
     order:         (data.order as number) ?? 0,
@@ -44,6 +58,26 @@ function toTask(id: string, data: Record<string, unknown>): Task {
         ? data.createdAt.toDate().toISOString()
         : (data.createdAt as string) ?? new Date().toISOString(),
   };
+}
+
+/** Does this task apply today, given its recurrence rule? */
+function isDueToday(task: Task, today: string, todayKey: TaskDay): boolean {
+  switch (task.recurrence) {
+    case 'daily':
+      return true;
+    case 'weekly':
+      return task.days.length === 0 || task.days.includes(todayKey);
+    case 'monthly':
+      return !!task.dayOfMonth && new Date(`${today}T00:00:00Z`).getUTCDate() === task.dayOfMonth;
+    case 'interval': {
+      if (!task.intervalDays || task.intervalDays < 1) return false;
+      const anchor = task.anchorDate ?? task.createdAt.slice(0, 10);
+      const diff = daysBetween(anchor, today);
+      return diff >= 0 && diff % task.intervalDays === 0;
+    }
+    default:
+      return false;
+  }
 }
 
 function toTaskLog(id: string, data: Record<string, unknown>): TaskLog {
@@ -63,6 +97,12 @@ function toTaskLog(id: string, data: Record<string, unknown>): TaskLog {
 
 // ── Task CRUD ─────────────────────────────────────────────────────
 
+// Firestore rejects `undefined` field values — strip optional fields that
+// aren't set (e.g. dayOfMonth/intervalDays/anchorDate when not applicable).
+function clean<T>(obj: T): T {
+  return JSON.parse(JSON.stringify(obj));
+}
+
 export async function getTasks(): Promise<Task[]> {
   const q = query(collection(db, TASKS_COL), orderBy('scheduledTime', 'asc'));
   const snap = await getDocs(q);
@@ -71,14 +111,14 @@ export async function getTasks(): Promise<Task[]> {
 
 export async function createTask(data: Omit<Task, 'id' | 'createdAt'>): Promise<string> {
   const ref = await addDoc(collection(db, TASKS_COL), {
-    ...data,
+    ...clean(data),
     createdAt: serverTimestamp(),
   });
   return ref.id;
 }
 
 export async function updateTask(id: string, data: Partial<Omit<Task, 'id'>>): Promise<void> {
-  await updateDoc(doc(db, TASKS_COL, id), data);
+  await updateDoc(doc(db, TASKS_COL, id), clean(data));
 }
 
 export async function deleteTask(id: string): Promise<void> {
@@ -143,27 +183,31 @@ export async function completeTask(
   );
 }
 
-/** Get tasks that are active + scheduled for today + match current HH:MM */
+/** Get tasks that are active + due today (by recurrence rule) + match current HH:MM */
 export async function getDueTasksNow(): Promise<Task[]> {
   const allTasks = await getTasks();
   const nowHHMM  = new Date().toTimeString().slice(0, 5);
-  const today    = currentDayKey();
+  const today    = todayStr();
+  const dayKey   = currentDayKey();
 
   return allTasks.filter((t) => {
     if (!t.active) return false;
     if (t.scheduledTime !== nowHHMM) return false;
-    if (t.days.length > 0 && !t.days.includes(today)) return false;
-    return true;
+    return isDueToday(t, today, dayKey);
   });
 }
 
-/** Tasks applicable to today (active + correct day) */
+/**
+ * Tasks applicable to today (active + due by recurrence rule) AND scheduled
+ * within the shift currently running — so staff only see their own shift's
+ * checklist, not the other two shifts' worth of tasks.
+ */
 export async function getTodayTasks(): Promise<Task[]> {
   const allTasks = await getTasks();
-  const today    = currentDayKey();
-  return allTasks.filter((t) => {
-    if (!t.active) return false;
-    if (t.days.length > 0 && !t.days.includes(today)) return false;
-    return true;
-  });
+  const today    = todayStr();
+  const dayKey   = currentDayKey();
+  const nowShift = currentShiftPeriod();
+  return allTasks.filter(
+    (t) => t.active && isDueToday(t, today, dayKey) && shiftPeriodOf(t.scheduledTime) === nowShift
+  );
 }

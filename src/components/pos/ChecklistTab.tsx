@@ -9,7 +9,15 @@ import { useAuthStore } from '@/store/useAuthStore';
 import { storage } from '@/app/lib/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import CameraPortal from './CameraPortal';
-import type { Task, TaskLog } from '@/types/pos.types';
+import { currentShiftPeriod, SHIFT_PERIOD_LABEL } from '@/app/lib/shiftPeriods';
+import type { Task, TaskLog, TaskGroup } from '@/types/pos.types';
+
+const GROUP_ORDER: TaskGroup[] = ['shift', 'hourly', 'periodic'];
+const GROUP_LABELS: Record<TaskGroup, string> = {
+  shift:    '🔄 Việc mỗi ca',
+  hourly:   '🕐 Việc theo giờ cố định',
+  periodic: '🗓️ Việc định kỳ (ngày/tuần/tháng)',
+};
 
 // ── FCM init (client-only) ────────────────────────────────────────
 
@@ -297,13 +305,19 @@ export default function ChecklistTab() {
   // ── Checked in — task list ─────────────────────────────────────
   const completedCount = tasks.filter((t) => logs.find((l) => l.taskId === t.id && l.status === 'completed')).length;
 
-  // Group tasks by hour bucket for display
-  const grouped: Record<string, Task[]> = {};
-  for (const task of tasks) {
-    const hour = task.scheduledTime.slice(0, 2) + ':00';
-    if (!grouped[hour]) grouped[hour] = [];
-    grouped[hour].push(task);
-  }
+  // Group tasks by đầu/cuối-ca vs giờ cố định vs định kỳ, then by hour bucket
+  // within each — keeps the checklist readable no matter who's on shift.
+  const sections = GROUP_ORDER.map((group) => {
+    const groupTasks = tasks
+      .filter((t) => t.group === group)
+      .sort((a, b) => a.scheduledTime.localeCompare(b.scheduledTime));
+    const byHour: Record<string, Task[]> = {};
+    for (const task of groupTasks) {
+      const hour = task.scheduledTime.slice(0, 2) + ':00';
+      (byHour[hour] ??= []).push(task);
+    }
+    return { group, tasks: groupTasks, byHour };
+  }).filter((s) => s.tasks.length > 0);
 
   return (
     <>
@@ -329,6 +343,9 @@ export default function ChecklistTab() {
         </div>
         <div className="text-right">
           <p className="text-xs text-gray-500">{completedCount}/{tasks.length} việc</p>
+          <span className="inline-block text-[10px] font-bold text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full mt-1">
+            {SHIFT_PERIOD_LABEL[currentShiftPeriod()]}
+          </span>
           <div className="w-20 h-1.5 bg-gray-100 rounded-full mt-1">
             <div
               className="h-1.5 bg-orange-500 rounded-full transition-all"
@@ -357,27 +374,34 @@ export default function ChecklistTab() {
           <p className="text-sm">Không có công việc nào hôm nay</p>
         </div>
       ) : (
-        <div className="space-y-4 pb-4">
-          {Object.entries(grouped)
-            .sort(([a], [b]) => a.localeCompare(b))
-            .map(([hour, hourTasks]) => (
-              <div key={hour}>
-                <p className="text-xs font-bold text-gray-400 uppercase mb-2 flex items-center gap-1">
-                  <Clock size={11} /> {hour}
-                </p>
-                <div className="space-y-2">
-                  {hourTasks.map((task) => (
-                    <TaskCard
-                      key={task.id}
-                      task={task}
-                      log={logs.find((l) => l.taskId === task.id)}
-                      deviceId={deviceId}
-                      onComplete={handleTaskComplete}
-                    />
+        <div className="space-y-6 pb-4">
+          {sections.map(({ group, byHour }) => (
+            <div key={group}>
+              <p className="text-sm font-bold text-gray-700 mb-2">{GROUP_LABELS[group]}</p>
+              <div className="space-y-4">
+                {Object.entries(byHour)
+                  .sort(([a], [b]) => a.localeCompare(b))
+                  .map(([hour, hourTasks]) => (
+                    <div key={hour}>
+                      <p className="text-xs font-bold text-gray-400 uppercase mb-2 flex items-center gap-1">
+                        <Clock size={11} /> {hour}
+                      </p>
+                      <div className="space-y-2">
+                        {hourTasks.map((task) => (
+                          <TaskCard
+                            key={task.id}
+                            task={task}
+                            log={logs.find((l) => l.taskId === task.id)}
+                            deviceId={deviceId}
+                            onComplete={handleTaskComplete}
+                          />
+                        ))}
+                      </div>
+                    </div>
                   ))}
-                </div>
               </div>
-            ))}
+            </div>
+          ))}
         </div>
       )}
 
