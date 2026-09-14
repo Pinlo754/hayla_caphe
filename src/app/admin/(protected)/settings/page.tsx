@@ -5,7 +5,7 @@ import { getPosSettings, updatePosSettings } from '@/app/lib/firebaseSettings';
 import { getFacebookConfig, saveFacebookConfig } from '@/app/lib/firebaseFacebookNotify';
 import {
   Download, Loader2, Check, Facebook, Bell, BellOff,
-  TestTube, Eye, EyeOff, Save, AlertCircle, Plus, X, UserCircle2,
+  TestTube, Eye, EyeOff, Save, AlertCircle, Plus, X, UserCircle2, Smartphone,
 } from 'lucide-react';
 
 export default function AdminSettingsPage() {
@@ -98,6 +98,32 @@ export default function AdminSettingsPage() {
     }
   };
 
+  // ── Push notification (FCM) test — chỉ gửi tới thiết bị đang trong ca ──
+  const [pushTesting, setPushTesting] = useState(false);
+  const [pushResult, setPushResult] = useState<{ ok: boolean; msg: string } | null>(null);
+
+  const handlePushTest = async () => {
+    setPushTesting(true);
+    setPushResult(null);
+    try {
+      const res = await fetch('/api/test-notification', { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) {
+        setPushResult({ ok: false, msg: data.error ?? 'Lỗi không xác định' });
+      } else if (data.reason === 'no active shifts') {
+        setPushResult({ ok: false, msg: 'Không có thiết bị nào đang trong ca (chưa check-in) để gửi.' });
+      } else if (data.reason === 'no FCM tokens for active shifts') {
+        setPushResult({ ok: false, msg: `${data.deviceCount} thiết bị đang trong ca nhưng chưa đăng ký nhận thông báo.` });
+      } else {
+        setPushResult({ ok: true, msg: `Đã gửi tới ${data.sent}/${data.total} thiết bị đang trong ca.` });
+      }
+    } catch (e) {
+      setPushResult({ ok: false, msg: e instanceof Error ? e.message : 'Lỗi kết nối' });
+    } finally {
+      setPushTesting(false);
+    }
+  };
+
   const handleFbTest = async () => {
     setTesting(true);
     setTestResult(null);
@@ -178,6 +204,36 @@ export default function AdminSettingsPage() {
               {posLoading ? '...' : autoDownload ? 'Đang bật' : 'Đã tắt'}
             </span>
           </p>
+        </div>
+      </div>
+
+      {/* ── Push notification (FCM) test section ───────────────────── */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm divide-y divide-gray-50">
+        <div className="px-5 py-4 flex items-center gap-2.5">
+          <div className="w-8 h-8 bg-orange-50 rounded-xl flex items-center justify-center">
+            <Smartphone size={16} className="text-orange-500" />
+          </div>
+          <div>
+            <h2 className="text-sm font-bold text-gray-700">Thông báo đẩy (nhắc việc)</h2>
+            <p className="text-xs text-gray-400">Chỉ gửi tới thiết bị đang trong ca (đã check-in) — thiết bị ngoài ca sẽ không nhận được</p>
+          </div>
+        </div>
+        <div className="px-5 py-5 space-y-3">
+          <button
+            onClick={handlePushTest}
+            disabled={pushTesting}
+            className="flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-bold px-4 py-2.5 rounded-xl transition disabled:opacity-60"
+          >
+            {pushTesting ? <Loader2 size={14} className="animate-spin" /> : <TestTube size={14} />}
+            Test thông báo
+          </button>
+
+          {pushResult && (
+            <div className={`text-xs font-medium px-3 py-2.5 rounded-xl flex items-start gap-2 ${pushResult.ok ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>
+              <span className="shrink-0 mt-px">{pushResult.ok ? '✓' : '⚠'}</span>
+              <span>{pushResult.msg}</span>
+            </div>
+          )}
         </div>
       </div>
 
