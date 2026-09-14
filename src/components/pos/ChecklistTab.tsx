@@ -10,14 +10,7 @@ import { storage } from '@/app/lib/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import CameraPortal from './CameraPortal';
 import { currentShiftPeriod, SHIFT_PERIOD_LABEL } from '@/app/lib/shiftPeriods';
-import type { Task, TaskLog, TaskGroup } from '@/types/pos.types';
-
-const GROUP_ORDER: TaskGroup[] = ['shift', 'hourly', 'periodic'];
-const GROUP_LABELS: Record<TaskGroup, string> = {
-  shift:    '🔄 Việc mỗi ca',
-  hourly:   '🕐 Việc theo giờ cố định',
-  periodic: '🗓️ Việc định kỳ (ngày/tuần/tháng)',
-};
+import type { Task, TaskLog } from '@/types/pos.types';
 
 // ── FCM init (client-only) ────────────────────────────────────────
 
@@ -305,19 +298,14 @@ export default function ChecklistTab() {
   // ── Checked in — task list ─────────────────────────────────────
   const completedCount = tasks.filter((t) => logs.find((l) => l.taskId === t.id && l.status === 'completed')).length;
 
-  // Group tasks by đầu/cuối-ca vs giờ cố định vs định kỳ, then by hour bucket
-  // within each — keeps the checklist readable no matter who's on shift.
-  const sections = GROUP_ORDER.map((group) => {
-    const groupTasks = tasks
-      .filter((t) => t.group === group)
-      .sort((a, b) => a.scheduledTime.localeCompare(b.scheduledTime));
-    const byHour: Record<string, Task[]> = {};
-    for (const task of groupTasks) {
-      const hour = task.scheduledTime.slice(0, 2) + ':00';
-      (byHour[hour] ??= []).push(task);
-    }
-    return { group, tasks: groupTasks, byHour };
-  }).filter((s) => s.tasks.length > 0);
+  // Sort strictly by time — no category sections. Tasks already come from
+  // getTodayTasks() filtered to the current shift + due-today recurrence
+  // (e.g. a "every 2 days" task simply won't appear on an off day).
+  const byHour: Record<string, Task[]> = {};
+  for (const task of [...tasks].sort((a, b) => a.scheduledTime.localeCompare(b.scheduledTime))) {
+    const hour = task.scheduledTime.slice(0, 2) + ':00';
+    (byHour[hour] ??= []).push(task);
+  }
 
   return (
     <>
@@ -374,34 +362,27 @@ export default function ChecklistTab() {
           <p className="text-sm">Không có công việc nào hôm nay</p>
         </div>
       ) : (
-        <div className="space-y-6 pb-4">
-          {sections.map(({ group, byHour }) => (
-            <div key={group}>
-              <p className="text-sm font-bold text-gray-700 mb-2">{GROUP_LABELS[group]}</p>
-              <div className="space-y-4">
-                {Object.entries(byHour)
-                  .sort(([a], [b]) => a.localeCompare(b))
-                  .map(([hour, hourTasks]) => (
-                    <div key={hour}>
-                      <p className="text-xs font-bold text-gray-400 uppercase mb-2 flex items-center gap-1">
-                        <Clock size={11} /> {hour}
-                      </p>
-                      <div className="space-y-2">
-                        {hourTasks.map((task) => (
-                          <TaskCard
-                            key={task.id}
-                            task={task}
-                            log={logs.find((l) => l.taskId === task.id)}
-                            deviceId={deviceId}
-                            onComplete={handleTaskComplete}
-                          />
-                        ))}
-                      </div>
-                    </div>
+        <div className="space-y-4 pb-4">
+          {Object.entries(byHour)
+            .sort(([a], [b]) => a.localeCompare(b))
+            .map(([hour, hourTasks]) => (
+              <div key={hour}>
+                <p className="text-xs font-bold text-gray-400 uppercase mb-2 flex items-center gap-1">
+                  <Clock size={11} /> {hour}
+                </p>
+                <div className="space-y-2">
+                  {hourTasks.map((task) => (
+                    <TaskCard
+                      key={task.id}
+                      task={task}
+                      log={logs.find((l) => l.taskId === task.id)}
+                      deviceId={deviceId}
+                      onComplete={handleTaskComplete}
+                    />
                   ))}
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
         </div>
       )}
 
