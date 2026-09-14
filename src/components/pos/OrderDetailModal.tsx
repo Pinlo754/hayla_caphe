@@ -29,7 +29,10 @@ export default function OrderDetailModal({ order, paymentMethod, isProcessing, r
           <div className="px-6 py-5 border-b flex justify-between items-start">
             <div>
               <h2 className="text-xl text-gray-800">Bàn {order.tableId}</h2>
-              <p className="text-gray-400 text-xs">Đơn #{order.id.slice(-6)}</p>
+              <p className="text-gray-400 text-xs">
+                Đơn #{order.id.slice(-6)}
+                {order.staffName && ` · ${order.staffName}`}
+              </p>
             </div>
             <button onClick={onClose} className="p-2 bg-gray-100 rounded-full">
               <X size={20} className="text-black" />

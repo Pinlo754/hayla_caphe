@@ -1,21 +1,14 @@
 'use client';
 
-import { useEffect, useRef, useState, useCallback } from 'react';
-import { Camera, LogIn, LogOut, CheckCircle2, Clock, AlertTriangle, RefreshCw } from 'lucide-react';
-import { createPortal } from 'react-dom';
+import { useEffect, useState, useCallback } from 'react';
+import { Camera, LogOut, CheckCircle2, Clock, RefreshCw } from 'lucide-react';
 import { getTodayTasks, getTodayLogs, completeTask } from '@/app/lib/firebaseTasks';
-import {
-  getDeviceId,
-  getActiveShift,
-  checkIn,
-  checkOut,
-  saveFcmToken,
-} from '@/app/lib/firebaseShifts';
-import { compressImage } from '@/app/lib/firebaseStorage';
-import { uploadReceiptImage } from '@/app/lib/firebaseStorage';
+import { saveFcmToken } from '@/app/lib/firebaseShifts';
+import { useShiftStore } from '@/store/useShiftStore';
 import { storage } from '@/app/lib/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import type { Task, TaskLog, Shift } from '@/types/pos.types';
+import CameraPortal from './CameraPortal';
+import type { Task, TaskLog } from '@/types/pos.types';
 
 // ── FCM init (client-only) ────────────────────────────────────────
 
@@ -30,84 +23,6 @@ async function initFcm(deviceId: string) {
     const token = await getToken(messaging, { vapidKey, serviceWorkerRegistration: sw });
     if (token) await saveFcmToken(deviceId, token);
   } catch { /* FCM not available — skip silently */ }
-}
-
-// ── Camera capture portal ─────────────────────────────────────────
-
-interface CameraPortalProps {
-  title: string;
-  onCapture: (blob: Blob) => void;
-  onClose: () => void;
-}
-
-function CameraPortal({ title, onCapture, onClose }: CameraPortalProps) {
-  const [ready, setReady] = useState(false);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-
-  useEffect(() => { setReady(true); }, []);
-
-  useEffect(() => {
-    if (!ready) return;
-    let mounted = true;
-    navigator.mediaDevices
-      .getUserMedia({ video: { facingMode: 'user' }, audio: false })
-      .then((stream) => {
-        if (!mounted) { stream.getTracks().forEach((t) => t.stop()); return; }
-        streamRef.current = stream;
-        if (videoRef.current) videoRef.current.srcObject = stream;
-      })
-      .catch(() => {});
-    return () => {
-      mounted = false;
-      streamRef.current?.getTracks().forEach((t) => t.stop());
-    };
-  }, [ready]);
-
-  const capture = async () => {
-    const video = videoRef.current;
-    if (!video) return;
-    const canvas = document.createElement('canvas');
-    canvas.width  = video.videoWidth  || 640;
-    canvas.height = video.videoHeight || 480;
-    canvas.getContext('2d')?.drawImage(video, 0, 0);
-    canvas.toBlob(async (blob) => {
-      if (!blob) return;
-      streamRef.current?.getTracks().forEach((t) => t.stop());
-      const compressed = await compressImage(blob, 800, 0.8);
-      onCapture(compressed);
-    }, 'image/jpeg', 0.9);
-  };
-
-  if (!ready) return null;
-  return createPortal(
-    <div className="fixed inset-0 bg-black flex flex-col items-center justify-center z-[9999]">
-      <p className="text-white/80 text-sm mb-4">{title}</p>
-      <video
-        ref={videoRef}
-        autoPlay
-        playsInline
-        muted
-        className="w-full max-w-sm rounded-2xl object-cover"
-        style={{ maxHeight: '60vh' }}
-      />
-      <div className="flex gap-4 mt-6">
-        <button
-          onClick={onClose}
-          className="px-6 py-3 bg-white/20 text-white rounded-full font-bold text-sm"
-        >
-          Hủy
-        </button>
-        <button
-          onClick={capture}
-          className="px-8 py-3 bg-orange-500 text-white rounded-full font-bold text-sm shadow-lg"
-        >
-          Chụp ảnh
-        </button>
-      </div>
-    </div>,
-    document.body
-  );
 }
 
 // ── Task card ─────────────────────────────────────────────────────
@@ -214,28 +129,14 @@ function TaskCard({ task, log, deviceId, onComplete }: TaskCardProps) {
 // ── Main tab ──────────────────────────────────────────────────────
 
 export default function ChecklistTab() {
-  const deviceId = getDeviceId();
+  const { deviceId, shift, doCheckOut } = useShiftStore();
 
-  const [shift, setShift]       = useState<Shift | null>(null);
-  const [shiftLoading, setShiftLoading] = useState(true);
   const [tasks, setTasks]       = useState<Task[]>([]);
   const [logs, setLogs]         = useState<TaskLog[]>([]);
   const [dataLoading, setDataLoading] = useState(false);
 
-  // Check-in form state
-  const [staffName, setStaffName]   = useState('');
-  const [showCheckinCamera, setShowCheckinCamera]   = useState(false);
   const [showCheckoutCamera, setShowCheckoutCamera] = useState(false);
-  const [checkinLoading, setCheckinLoading]   = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
-
-  // Load active shift on mount
-  useEffect(() => {
-    getActiveShift(deviceId).then((s) => {
-      setShift(s);
-      setShiftLoading(false);
-    }).catch(() => setShiftLoading(false));
-  }, [deviceId]);
 
   // Init FCM once on mount
   useEffect(() => {
@@ -283,26 +184,11 @@ export default function ChecklistTab() {
     return () => clearInterval(interval);
   }, [shift, tasks, logs]);
 
-  const handleCheckIn = async (photoBlob?: Blob) => {
-    if (!staffName.trim()) return;
-    setCheckinLoading(true);
-    try {
-      const newShift = await checkIn(deviceId, staffName.trim(), photoBlob);
-      setShift(newShift);
-      await initFcm(deviceId);
-      await loadTasks();
-    } finally {
-      setCheckinLoading(false);
-      setShowCheckinCamera(false);
-    }
-  };
-
   const handleCheckOut = async (photoBlob?: Blob) => {
     if (!shift) return;
     setCheckoutLoading(true);
     try {
-      await checkOut(shift.id, photoBlob);
-      setShift(null);
+      await doCheckOut(photoBlob);
       setTasks([]);
       setLogs([]);
     } finally {
@@ -315,67 +201,12 @@ export default function ChecklistTab() {
     getTodayLogs().then(setLogs).catch(() => {});
   };
 
-  // ── Loading ────────────────────────────────────────────────────
-  if (shiftLoading) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
-
-  // ── Not checked in ─────────────────────────────────────────────
+  // ── Not checked in (shouldn't normally happen — the app gates on this) ──
   if (!shift) {
     return (
-      <>
-        {showCheckinCamera && (
-          <CameraPortal
-            title="Chụp ảnh check-in"
-            onCapture={(blob) => { setShowCheckinCamera(false); handleCheckIn(blob); }}
-            onClose={() => setShowCheckinCamera(false)}
-          />
-        )}
-
-        <div className="flex flex-col items-center justify-center min-h-[60vh] px-6">
-          <div className="text-6xl mb-4">☕</div>
-          <h2 className="text-xl font-bold text-gray-800 mb-1">Chào mừng!</h2>
-          <p className="text-sm text-gray-500 mb-8 text-center">Hãy check-in để bắt đầu ca làm việc hôm nay</p>
-
-          <div className="w-full max-w-xs space-y-3">
-            <input
-              type="text"
-              placeholder="Tên nhân viên"
-              value={staffName}
-              onChange={(e) => setStaffName(e.target.value)}
-              className="w-full border rounded-2xl px-4 py-3 text-gray-800 text-sm outline-none focus:border-orange-400"
-            />
-
-            <button
-              disabled={!staffName.trim() || checkinLoading}
-              onClick={() => setShowCheckinCamera(true)}
-              className="w-full flex items-center justify-center gap-2 bg-orange-500 text-white py-3.5 rounded-2xl font-bold text-sm disabled:bg-gray-200 disabled:text-gray-400 shadow-lg shadow-orange-200 transition"
-            >
-              {checkinLoading ? (
-                <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <>
-                  <Camera size={18} />
-                  Check-in với ảnh
-                </>
-              )}
-            </button>
-
-            <button
-              disabled={!staffName.trim() || checkinLoading}
-              onClick={() => handleCheckIn()}
-              className="w-full flex items-center justify-center gap-2 bg-gray-100 text-gray-600 py-3 rounded-2xl font-bold text-sm disabled:opacity-40 transition"
-            >
-              <LogIn size={16} />
-              Check-in không ảnh
-            </button>
-          </div>
-        </div>
-      </>
+      <div className="flex flex-col items-center justify-center min-h-[60vh] px-6 text-center">
+        <p className="text-sm text-gray-400">Chưa check-in ca làm việc.</p>
+      </div>
     );
   }
 

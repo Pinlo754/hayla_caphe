@@ -1,6 +1,6 @@
 'use client';
 
-import { ClipboardList, Clock } from 'lucide-react';
+import { ClipboardList, Clock, User } from 'lucide-react';
 import { Order } from '@/types/pos.types';
 
 interface Props {
@@ -80,11 +80,19 @@ export default function OrdersTab({ orders, isLoading, onRefresh }: Props) {
             )}
 
             <div className="flex justify-between items-center">
-              <div className="flex items-center gap-1 text-gray-400 text-[10px]">
-                <Clock size={12} />
-                {new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                {' - '}
-                {new Date(order.createdAt).toLocaleDateString('vi-VN')}
+              <div>
+                <div className="flex items-center gap-1 text-gray-400 text-[10px]">
+                  <Clock size={12} />
+                  {new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  {' - '}
+                  {new Date(order.createdAt).toLocaleDateString('vi-VN')}
+                </div>
+                {order.staffName && (
+                  <div className="flex items-center gap-1 text-gray-400 text-[10px] mt-0.5">
+                    <User size={12} />
+                    {order.staffName}
+                  </div>
+                )}
               </div>
               <div className="text-right">
                 <p className="text-[10px] text-gray-400 uppercase">Tổng</p>

@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { ShoppingCart } from 'lucide-react';
 
 import { usePosStore } from '@/store/usePosStore';
+import { useShiftStore } from '@/store/useShiftStore';
 import { menuItems as staticMenu } from '@/data/menuItems';
 import { printer } from '@/lib/bluetoothPrinter';
 import { getOrders, createOrder, updateOrder } from '@/app/lib/firebaseOrders';
@@ -24,6 +25,7 @@ import ChecklistTab from '@/components/pos/ChecklistTab';
 import StatsTab from '@/components/pos/StatsTab';
 import CartDrawer from '@/components/pos/CartDrawer';
 import OrderDetailModal from '@/components/pos/OrderDetailModal';
+import ShiftGate from '@/components/pos/ShiftGate';
 
 import type { ActiveTab, Customer, DiscountType, MenuItem, Order, PaymentMethod, ReceiptData } from '@/types/pos.types';
 
@@ -47,6 +49,12 @@ function downloadReceiptLocally(file: File, tableId: number) {
 
 export default function MobilePOS() {
   const { cart, selectedTable, selectTable, clearCart, setCart } = usePosStore();
+  const { shift, loading: shiftLoading, loadShift } = useShiftStore();
+
+  useEffect(() => {
+    loadShift();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const [activeTab, setActiveTab] = useState<ActiveTab>('tables');
   const [showCart, setShowCart] = useState(false);
@@ -195,7 +203,11 @@ export default function MobilePOS() {
       if (editingOrderId) {
         await updateOrder(editingOrderId, orderData);
       } else {
-        await createOrder({ ...orderData, createdAt: new Date().toISOString() });
+        await createOrder({
+          ...orderData,
+          staffName: shift?.staffName,
+          createdAt: new Date().toISOString(),
+        });
       }
 
       // Order saved — save the receipt photo to the local device (if enabled in admin settings)
@@ -285,6 +297,18 @@ export default function MobilePOS() {
     }
   };
 
+  if (shiftLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-gray-50">
+        <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!shift) {
+    return <ShiftGate />;
+  }
+
   return (
     <div className="flex flex-col h-screen bg-gray-50 pb-20">
       <PosHeader
@@ -293,6 +317,7 @@ export default function MobilePOS() {
         printerName={printerName}
         onConnectPrinter={handleConnectPrinter}
         onDisconnectPrinter={handleDisconnectPrinter}
+        staffName={shift.staffName}
       />
 
       <main className="flex-1 overflow-y-auto p-4">

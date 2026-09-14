@@ -49,6 +49,8 @@ export interface Order {
   // Online order fields
   orderType?: 'dine-in' | 'online';
   customerInfo?: CustomerInfo;
+  // Who created this order (staff name captured at shift check-in)
+  staffName?: string;
 }
 
 export interface Customer {
