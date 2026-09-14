@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Plus, Pencil, Trash2, Check, X, ChevronUp, ChevronDown } from 'lucide-react';
+import { Plus, Pencil, Trash2, Check, X, Sparkles } from 'lucide-react';
 import { getTasks, createTask, updateTask, deleteTask } from '@/app/lib/firebaseTasks';
-import type { Task, TaskPriority, TaskDay } from '@/types/pos.types';
+import { DEFAULT_TASKS } from '@/data/defaultTasks';
+import type { Task, TaskPriority, TaskDay, TaskGroup, TaskRecurrence } from '@/types/pos.types';
 
 const DAYS: { key: TaskDay; label: string }[] = [
   { key: 'mon', label: 'T2' },
@@ -24,16 +25,60 @@ const PRIORITY_LABELS: Record<TaskPriority, string> = {
   high: 'Cao', medium: 'Trung bình', low: 'Thấp',
 };
 
+const GROUP_LABELS: Record<TaskGroup, string> = {
+  shift:    '🔄 Lặp mỗi ca',
+  hourly:   '🕐 Giờ cố định',
+  periodic: '🗓️ Định kỳ',
+};
+const GROUP_COLORS: Record<TaskGroup, string> = {
+  shift:    'bg-purple-50 text-purple-600 border-purple-200',
+  hourly:   'bg-blue-50 text-blue-600 border-blue-200',
+  periodic: 'bg-teal-50 text-teal-600 border-teal-200',
+};
+
+const RECURRENCE_LABELS: Record<TaskRecurrence, string> = {
+  daily:    'Hằng ngày',
+  weekly:   'Theo tuần',
+  monthly:  'Theo tháng',
+  interval: 'Theo chu kỳ N ngày',
+};
+
 const EMPTY: Omit<Task, 'id' | 'createdAt'> = {
   title:         '',
   description:   '',
   priority:      'medium',
+  group:         'hourly',
   scheduledTime: '08:00',
+  recurrence:    'daily',
   days:          [],
+  dayOfMonth:    undefined,
+  intervalDays:  undefined,
+  anchorDate:    undefined,
   requirePhoto:  true,
   active:        true,
   order:         0,
 };
+
+function todayStr() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function recurrenceSummary(task: Task): string {
+  switch (task.recurrence) {
+    case 'daily':
+      return 'Mỗi ngày';
+    case 'weekly':
+      return task.days.length === 0
+        ? 'Mỗi ngày'
+        : task.days.map((d) => DAYS.find((x) => x.key === d)?.label).join(', ');
+    case 'monthly':
+      return `Ngày ${task.dayOfMonth ?? '?'} hàng tháng`;
+    case 'interval':
+      return `Mỗi ${task.intervalDays ?? '?'} ngày`;
+    default:
+      return '';
+  }
+}
 
 export default function TasksAdminPage() {
   const [tasks, setTasks]     = useState<Task[]>([]);
@@ -43,6 +88,8 @@ export default function TasksAdminPage() {
   const [form, setForm]         = useState<typeof EMPTY>({ ...EMPTY });
   const [saving, setSaving]     = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [seeding, setSeeding]   = useState(false);
+  const [groupFilter, setGroupFilter] = useState<TaskGroup | 'all'>('all');
 
   const load = async () => {
     setLoading(true);
@@ -63,8 +110,13 @@ export default function TasksAdminPage() {
       title:         task.title,
       description:   task.description ?? '',
       priority:      task.priority,
+      group:         task.group,
       scheduledTime: task.scheduledTime,
+      recurrence:    task.recurrence,
       days:          [...task.days],
+      dayOfMonth:    task.dayOfMonth,
+      intervalDays:  task.intervalDays,
+      anchorDate:    task.anchorDate,
       requirePhoto:  task.requirePhoto,
       active:        task.active,
       order:         task.order,
@@ -106,19 +158,82 @@ export default function TasksAdminPage() {
     }));
   };
 
+  const taskKey = (t: { title: string; scheduledTime: string }) =>
+    `${t.title.trim().toLowerCase()}|${t.scheduledTime}`;
+
+  const handleSeed = async () => {
+    const existingKeys = new Set(tasks.map(taskKey));
+    const toCreate = DEFAULT_TASKS.filter((t) => !existingKeys.has(taskKey(t)));
+
+    if (toCreate.length === 0) {
+      alert('Tất cả công việc mẫu đã có trong danh sách rồi.');
+      return;
+    }
+    if (!confirm(`Nhập ${toCreate.length} công việc mẫu (đầu/cuối ca, theo giờ, định kỳ) vào checklist? Bạn có thể chỉnh sửa/xóa từng việc sau khi nhập.`)) {
+      return;
+    }
+
+    setSeeding(true);
+    try {
+      let order = tasks.length;
+      for (const t of toCreate) {
+        const anchorDate = t.recurrence === 'interval' ? todayStr() : undefined;
+        await createTask({ ...t, anchorDate, order: order++ });
+      }
+      await load();
+    } finally {
+      setSeeding(false);
+    }
+  };
+
+  const visibleTasks = groupFilter === 'all' ? tasks : tasks.filter((t) => t.group === groupFilter);
+
   return (
     <div className="max-w-3xl">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Công việc</h1>
           <p className="text-sm text-gray-500 mt-1">Danh sách checklist theo lịch trình</p>
         </div>
+        <div className="flex gap-2">
+          <button
+            onClick={handleSeed}
+            disabled={seeding}
+            title="Nhập bộ checklist mẫu đầy đủ (đầu/cuối ca, theo giờ, vệ sinh định kỳ...)"
+            className="flex items-center gap-2 bg-teal-50 text-teal-700 border border-teal-200 px-4 py-2 rounded-xl text-sm font-bold hover:bg-teal-100 transition disabled:opacity-50"
+          >
+            <Sparkles size={16} /> {seeding ? 'Đang nhập...' : 'Nhập checklist mẫu'}
+          </button>
+          <button
+            onClick={openCreate}
+            className="flex items-center gap-2 bg-orange-500 text-white px-4 py-2 rounded-xl text-sm font-bold shadow hover:bg-orange-600 transition"
+          >
+            <Plus size={16} /> Thêm công việc
+          </button>
+        </div>
+      </div>
+
+      {/* Group filter */}
+      <div className="flex gap-2 mb-4 flex-wrap">
         <button
-          onClick={openCreate}
-          className="flex items-center gap-2 bg-orange-500 text-white px-4 py-2 rounded-xl text-sm font-bold shadow hover:bg-orange-600 transition"
+          onClick={() => setGroupFilter('all')}
+          className={`text-xs font-bold px-3 py-1.5 rounded-xl border transition ${
+            groupFilter === 'all' ? 'bg-gray-800 text-white border-gray-800' : 'bg-white text-gray-500 border-gray-200'
+          }`}
         >
-          <Plus size={16} /> Thêm công việc
+          Tất cả ({tasks.length})
         </button>
+        {(Object.keys(GROUP_LABELS) as TaskGroup[]).map((g) => (
+          <button
+            key={g}
+            onClick={() => setGroupFilter(g)}
+            className={`text-xs font-bold px-3 py-1.5 rounded-xl border transition ${
+              groupFilter === g ? GROUP_COLORS[g].replace('50', '100') + ' border-current' : 'bg-white text-gray-500 border-gray-200'
+            }`}
+          >
+            {GROUP_LABELS[g]} ({tasks.filter((t) => t.group === g).length})
+          </button>
+        ))}
       </div>
 
       {/* Form modal */}
@@ -157,6 +272,30 @@ export default function TasksAdminPage() {
                 />
               </div>
 
+              {/* Group */}
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Nhóm việc</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {(Object.keys(GROUP_LABELS) as TaskGroup[]).map((g) => (
+                    <button
+                      key={g}
+                      type="button"
+                      onClick={() => setForm((f) => ({ ...f, group: g }))}
+                      className={`px-2 py-2 rounded-xl text-xs font-bold border transition ${
+                        form.group === g ? GROUP_COLORS[g] : 'bg-gray-50 text-gray-400 border-gray-200'
+                      }`}
+                    >
+                      {GROUP_LABELS[g]}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[11px] text-gray-400 mt-1">
+                  {form.group === 'shift' && 'Việc mọi nhân viên lặp lại ở mỗi ca (đầu ca/cuối ca) — tạo 1 dòng riêng cho từng ca (VD: 06:05, 14:05, 22:05).'}
+                  {form.group === 'hourly' && 'Việc gắn với 1 mốc giờ cố định trong ngày.'}
+                  {form.group === 'periodic' && 'Vệ sinh/bảo trì/kiểm kê theo chu kỳ ngày, tuần hoặc tháng.'}
+                </p>
+              </div>
+
               {/* Time + Priority */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -182,28 +321,84 @@ export default function TasksAdminPage() {
                 </div>
               </div>
 
-              {/* Days */}
+              {/* Recurrence */}
               <div>
-                <label className="text-xs font-bold text-gray-500 uppercase mb-2 block">
-                  Ngày trong tuần <span className="text-gray-400 font-normal">(bỏ trống = mỗi ngày)</span>
-                </label>
-                <div className="flex gap-2 flex-wrap">
-                  {DAYS.map(({ key, label }) => (
-                    <button
-                      key={key}
-                      type="button"
-                      onClick={() => toggleDay(key)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition ${
-                        form.days.includes(key)
-                          ? 'bg-orange-500 text-white border-orange-500'
-                          : 'bg-gray-50 text-gray-500 border-gray-200'
-                      }`}
-                    >
-                      {label}
-                    </button>
+                <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Lặp lại</label>
+                <select
+                  value={form.recurrence}
+                  onChange={(e) => setForm((f) => ({ ...f, recurrence: e.target.value as TaskRecurrence }))}
+                  className="w-full border rounded-xl px-3 py-2 text-sm text-gray-900 outline-none focus:border-orange-400"
+                >
+                  {(Object.keys(RECURRENCE_LABELS) as TaskRecurrence[]).map((r) => (
+                    <option key={r} value={r}>{RECURRENCE_LABELS[r]}</option>
                   ))}
-                </div>
+                </select>
               </div>
+
+              {/* Recurrence-specific fields */}
+              {form.recurrence === 'weekly' && (
+                <div>
+                  <label className="text-xs font-bold text-gray-500 uppercase mb-2 block">
+                    Ngày trong tuần <span className="text-gray-400 font-normal">(bỏ trống = mỗi ngày)</span>
+                  </label>
+                  <div className="flex gap-2 flex-wrap">
+                    {DAYS.map(({ key, label }) => (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => toggleDay(key)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition ${
+                          form.days.includes(key)
+                            ? 'bg-orange-500 text-white border-orange-500'
+                            : 'bg-gray-50 text-gray-500 border-gray-200'
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {form.recurrence === 'monthly' && (
+                <div>
+                  <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Ngày trong tháng (1–31)</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={31}
+                    value={form.dayOfMonth ?? ''}
+                    onChange={(e) => setForm((f) => ({ ...f, dayOfMonth: e.target.value ? Number(e.target.value) : undefined }))}
+                    className="w-full border rounded-xl px-3 py-2 text-sm text-gray-900 outline-none focus:border-orange-400"
+                    placeholder="Vd: 1"
+                  />
+                </div>
+              )}
+
+              {form.recurrence === 'interval' && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Số ngày lặp lại</label>
+                    <input
+                      type="number"
+                      min={2}
+                      value={form.intervalDays ?? ''}
+                      onChange={(e) => setForm((f) => ({ ...f, intervalDays: e.target.value ? Number(e.target.value) : undefined }))}
+                      className="w-full border rounded-xl px-3 py-2 text-sm text-gray-900 outline-none focus:border-orange-400"
+                      placeholder="Vd: 2 (cách 2 ngày)"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Bắt đầu tính từ ngày</label>
+                    <input
+                      type="date"
+                      value={form.anchorDate ?? todayStr()}
+                      onChange={(e) => setForm((f) => ({ ...f, anchorDate: e.target.value }))}
+                      className="w-full border rounded-xl px-3 py-2 text-sm text-gray-900 outline-none focus:border-orange-400"
+                    />
+                  </div>
+                </div>
+              )}
 
               {/* Options */}
               <div className="flex gap-4">
@@ -252,14 +447,14 @@ export default function TasksAdminPage() {
         <div className="flex justify-center py-16">
           <div className="w-7 h-7 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
         </div>
-      ) : tasks.length === 0 ? (
+      ) : visibleTasks.length === 0 ? (
         <div className="text-center py-20 text-gray-400">
           <p className="text-5xl mb-3">📋</p>
-          <p>Chưa có công việc nào. Bấm <strong>Thêm công việc</strong> để bắt đầu.</p>
+          <p>Chưa có công việc nào. Bấm <strong>Thêm công việc</strong> hoặc <strong>Nhập checklist mẫu</strong> để bắt đầu.</p>
         </div>
       ) : (
         <div className="space-y-3">
-          {tasks.map((task) => (
+          {visibleTasks.map((task) => (
             <div
               key={task.id}
               className={`bg-white rounded-2xl border p-4 flex gap-4 items-start shadow-sm transition ${
@@ -281,15 +476,12 @@ export default function TasksAdminPage() {
                   <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{task.description}</p>
                 )}
                 <div className="flex flex-wrap gap-1 mt-1.5">
-                  {task.days.length === 0 ? (
-                    <span className="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">Mỗi ngày</span>
-                  ) : (
-                    task.days.map((d) => (
-                      <span key={d} className="text-[10px] bg-orange-50 text-orange-600 px-2 py-0.5 rounded-full">
-                        {DAYS.find((x) => x.key === d)?.label}
-                      </span>
-                    ))
-                  )}
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${GROUP_COLORS[task.group]}`}>
+                    {GROUP_LABELS[task.group]}
+                  </span>
+                  <span className="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">
+                    {recurrenceSummary(task)}
+                  </span>
                   {task.requirePhoto && (
                     <span className="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">📷 Ảnh</span>
                   )}

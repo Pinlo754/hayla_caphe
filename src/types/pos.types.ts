@@ -86,13 +86,29 @@ export type DiscountType = 'percent' | 'fixed';
 export type TaskPriority = 'high' | 'medium' | 'low';
 export type TaskDay = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
 
+/** How a task repeats: every day, on chosen weekdays, on a day of the month, or every N days. */
+export type TaskRecurrence = 'daily' | 'weekly' | 'monthly' | 'interval';
+
+/**
+ * Display bucket for the checklist UI — mirrors how the café actually thinks
+ * about work: things every shift repeats regardless of who's on ('shift'),
+ * things anchored to a clock time in the day ('hourly'), and periodic
+ * maintenance/admin work on a day/week/month cycle ('periodic').
+ */
+export type TaskGroup = 'shift' | 'hourly' | 'periodic';
+
 export interface Task {
   id: string;
   title: string;
   description?: string;
   priority: TaskPriority;
+  group: TaskGroup;
   scheduledTime: string;   // "HH:MM"
-  days: TaskDay[];         // empty array = every day
+  recurrence: TaskRecurrence;
+  days: TaskDay[];         // recurrence === 'weekly': which weekdays (empty = every day, legacy 'daily' meaning)
+  dayOfMonth?: number;     // recurrence === 'monthly': 1–31
+  intervalDays?: number;   // recurrence === 'interval': repeat every N days
+  anchorDate?: string;     // recurrence === 'interval': "YYYY-MM-DD" reference date for the cycle
   requirePhoto: boolean;
   active: boolean;
   order: number;
