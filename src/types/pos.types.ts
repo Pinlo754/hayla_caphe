@@ -49,8 +49,22 @@ export interface Order {
   // Online order fields
   orderType?: 'dine-in' | 'online';
   customerInfo?: CustomerInfo;
-  // Who created this order (staff name captured at shift check-in)
+  // Who created this order (logged-in employee)
+  staffId?: string;
   staffName?: string;
+}
+
+// ── Employee accounts (login) ────────────────────────────────────
+
+export interface StaffAccount {
+  id: string;
+  username: string;
+  name: string;
+  passwordHash: string;
+  salt: string;
+  active: boolean;
+  createdAt: string;
+  updatedAt?: string;
 }
 
 export interface Customer {
