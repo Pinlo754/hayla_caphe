@@ -1,10 +1,11 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { Camera, LogOut, CheckCircle2, Clock, RefreshCw } from 'lucide-react';
+import { Camera, LogIn, LogOut, CheckCircle2, Clock, RefreshCw } from 'lucide-react';
 import { getTodayTasks, getTodayLogs, completeTask } from '@/app/lib/firebaseTasks';
 import { saveFcmToken } from '@/app/lib/firebaseShifts';
 import { useShiftStore } from '@/store/useShiftStore';
+import { useAuthStore } from '@/store/useAuthStore';
 import { storage } from '@/app/lib/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import CameraPortal from './CameraPortal';
@@ -129,14 +130,29 @@ function TaskCard({ task, log, deviceId, onComplete }: TaskCardProps) {
 // ── Main tab ──────────────────────────────────────────────────────
 
 export default function ChecklistTab() {
-  const { deviceId, shift, doCheckOut } = useShiftStore();
+  const { deviceId, shift, loading: shiftLoading, loadShift, doCheckIn, doCheckOut } = useShiftStore();
+  const { session } = useAuthStore();
 
   const [tasks, setTasks]       = useState<Task[]>([]);
   const [logs, setLogs]         = useState<TaskLog[]>([]);
   const [dataLoading, setDataLoading] = useState(false);
 
+  // Check-in form state
+  const [staffName, setStaffName] = useState('');
+  const [showCheckinCamera, setShowCheckinCamera]   = useState(false);
   const [showCheckoutCamera, setShowCheckoutCamera] = useState(false);
+  const [checkinLoading, setCheckinLoading]   = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
+
+  // Load today's shift on mount, prefill the check-in name from the logged-in account
+  useEffect(() => {
+    loadShift();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (session?.name) setStaffName(session.name);
+  }, [session]);
 
   // Init FCM once on mount
   useEffect(() => {
@@ -184,6 +200,19 @@ export default function ChecklistTab() {
     return () => clearInterval(interval);
   }, [shift, tasks, logs]);
 
+  const handleCheckIn = async (photoBlob?: Blob) => {
+    if (!staffName.trim()) return;
+    setCheckinLoading(true);
+    try {
+      await doCheckIn(staffName.trim(), photoBlob);
+      await initFcm(deviceId);
+      await loadTasks();
+    } finally {
+      setCheckinLoading(false);
+      setShowCheckinCamera(false);
+    }
+  };
+
   const handleCheckOut = async (photoBlob?: Blob) => {
     if (!shift) return;
     setCheckoutLoading(true);
@@ -201,12 +230,67 @@ export default function ChecklistTab() {
     getTodayLogs().then(setLogs).catch(() => {});
   };
 
-  // ── Not checked in (shouldn't normally happen — the app gates on this) ──
+  // ── Loading ────────────────────────────────────────────────────
+  if (shiftLoading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  // ── Not checked in ─────────────────────────────────────────────
   if (!shift) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] px-6 text-center">
-        <p className="text-sm text-gray-400">Chưa check-in ca làm việc.</p>
-      </div>
+      <>
+        {showCheckinCamera && (
+          <CameraPortal
+            title="Chụp ảnh check-in"
+            onCapture={(blob) => { setShowCheckinCamera(false); handleCheckIn(blob); }}
+            onClose={() => setShowCheckinCamera(false)}
+          />
+        )}
+
+        <div className="flex flex-col items-center justify-center min-h-[60vh] px-6">
+          <div className="text-6xl mb-4">☕</div>
+          <h2 className="text-xl font-bold text-gray-800 mb-1">Chào mừng!</h2>
+          <p className="text-sm text-gray-500 mb-8 text-center">Hãy check-in để bắt đầu ca làm việc hôm nay</p>
+
+          <div className="w-full max-w-xs space-y-3">
+            <input
+              type="text"
+              placeholder="Tên nhân viên"
+              value={staffName}
+              onChange={(e) => setStaffName(e.target.value)}
+              className="w-full border rounded-2xl px-4 py-3 text-gray-800 text-sm outline-none focus:border-orange-400"
+            />
+
+            <button
+              disabled={!staffName.trim() || checkinLoading}
+              onClick={() => setShowCheckinCamera(true)}
+              className="w-full flex items-center justify-center gap-2 bg-orange-500 text-white py-3.5 rounded-2xl font-bold text-sm disabled:bg-gray-200 disabled:text-gray-400 shadow-lg shadow-orange-200 transition"
+            >
+              {checkinLoading ? (
+                <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <>
+                  <Camera size={18} />
+                  Check-in với ảnh
+                </>
+              )}
+            </button>
+
+            <button
+              disabled={!staffName.trim() || checkinLoading}
+              onClick={() => handleCheckIn()}
+              className="w-full flex items-center justify-center gap-2 bg-gray-100 text-gray-600 py-3 rounded-2xl font-bold text-sm disabled:opacity-40 transition"
+            >
+              <LogIn size={16} />
+              Check-in không ảnh
+            </button>
+          </div>
+        </div>
+      </>
     );
   }
 
