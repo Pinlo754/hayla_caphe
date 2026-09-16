@@ -72,6 +72,7 @@ function TaskCard({ task, log, deviceId, onComplete }: TaskCardProps) {
           title={`Chụp ảnh: ${task.title}`}
           onCapture={(blob) => { setShowCamera(false); handleComplete(blob); }}
           onClose={() => setShowCamera(false)}
+          defaultFacing="environment"
         />
       )}
 
