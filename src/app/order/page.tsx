@@ -15,18 +15,7 @@ import { uploadReceiptImage } from '@/app/lib/firebaseStorage';
 import type { MenuItem, CartItem } from '@/types/pos.types';
 import type { ToppingItem } from '@/app/lib/firebaseToppings';
 import ItemConfigModal from '@/components/pos/ItemConfigModal';
-
-// ── Bank constants (MB Bank) ────────────────────────────────────────
-const BANK = {
-  shortName: 'MB',
-  displayName: 'MB Bank',
-  account: '4440122752004',
-  owner: 'Hay là cà phê',
-};
-
-function buildQrUrl(amount: number, info: string) {
-  return `https://img.vietqr.io/image/${BANK.shortName}-${BANK.account}-compact2.jpg?amount=${amount}&addInfo=${encodeURIComponent(info)}`;
-}
+import { BANK, buildQrUrl } from '@/lib/payment';
 
 type Step = 'menu' | 'checkout' | 'success';
 

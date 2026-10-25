@@ -1,6 +1,7 @@
 'use client';
 
 import { X } from 'lucide-react';
+import { BANK, buildQrUrl } from '@/lib/payment';
 
 interface Props {
   amount: number;
@@ -22,14 +23,17 @@ export default function QRModal({ amount, tableId, onClose }: Props) {
 
         <div className="w-full text-center mb-4 pt-2">
           <h3 className="text-black text-xl">Quét mã thanh toán</h3>
-          <p className="text-orange-600 font-bold text-lg">{amount.toLocaleString()}đ</p>
+          <p className="text-orange-600 font-bold text-lg">{Math.round(amount).toLocaleString()}đ</p>
         </div>
 
         <img
-          src={`https://img.vietqr.io/image/MB-4440122752004-compact2.jpg?amount=${amount}&addInfo=Ban%20${tableId}`}
+          src={buildQrUrl(amount, `Ban ${tableId}`)}
           alt="QR thanh toán"
-          className="w-full aspect-square object-contain rounded-2xl mb-4"
+          className="w-full aspect-square object-contain rounded-2xl mb-2"
         />
+        <p className="text-xs text-gray-500 mb-4">
+          {BANK.displayName} · <b className="text-gray-900">{BANK.account}</b>
+        </p>
 
         <div className="w-full bg-gray-50 p-4 rounded-3xl text-center mb-2">
           <p className="text-sm text-gray-500 font-medium">Nội dung chuyển khoản:</p>

@@ -121,10 +121,15 @@ function buildReceipt(data: ReceiptData): Uint8Array {
     const name = toASCII(item.name);
     const sizeTag = item.size ? ` (${item.size})` : '';
     const fullName = `${item.quantity}x ${name}${sizeTag}`;
-    const priceStr = `${(item.price * item.quantity).toLocaleString()}d`;
+    const fullTotal = item.price * item.quantity;
+    const paidTotal = item.discountedTotal ?? fullTotal;
+    const priceStr = `${fullTotal.toLocaleString()}d`;
     const maxNameLen = RECEIPT_WIDTH - priceStr.length - 1;
     const displayName = fullName.length > maxNameLen ? fullName.slice(0, maxNameLen) : fullName;
     line(padLine(displayName, priceStr));
+    if (paidTotal < fullTotal) {
+      line(padLine('   Sau giam:', `${paidTotal.toLocaleString()}d`));
+    }
 
     if (item.toppings && item.toppings.length > 0) {
       line(`   + ${toASCII(item.toppings.join(', '))}`);
@@ -142,8 +147,8 @@ function buildReceipt(data: ReceiptData): Uint8Array {
   if (data.discountAmount && data.discountAmount > 0) {
     line(padLine('Tam tinh:', `${data.subtotal.toLocaleString()}d`));
     const discLabel = data.discountType === 'percent'
-      ? `Giam gia (${data.discountValue}%):`
-      : 'Giam gia:';
+      ? `Giam mon nuoc (${data.discountValue}%):`
+      : 'Giam mon nuoc:';
     line(padLine(discLabel, `-${data.discountAmount.toLocaleString()}d`));
   }
 
