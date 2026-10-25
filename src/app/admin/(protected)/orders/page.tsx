@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { getOrders, deleteOrder } from '@/app/lib/firebaseOrders';
 import type { Order } from '@/types/pos.types';
+import LinePrice from '@/components/pos/LinePrice';
 import { Trash2, RefreshCw, ChevronDown, ChevronUp, Search, Banknote, CreditCard, Globe, UtensilsCrossed, Phone, MapPin, MessageSquare, User } from 'lucide-react';
 
 export default function AdminOrdersPage() {
@@ -258,12 +259,12 @@ export default function AdminOrdersPage() {
                               {item.size && <span className="text-xs text-orange-400 ml-1">[{item.size}]</span>}
                               {item.toppings?.length ? <span className="text-xs text-gray-400 ml-1">+{item.toppings.join(', ')}</span> : null}
                             </span>
-                            <span className="text-gray-700 font-medium">{(item.price * item.quantity).toLocaleString()}đ</span>
+                            <LinePrice item={item} className="text-gray-700 font-medium" />
                           </div>
                         ))}
                         {order.discount && order.discount.amount > 0 && (
                           <div className="flex justify-between text-xs text-red-400 pt-1 border-t border-gray-200">
-                            <span>Giảm giá</span>
+                            <span>Giảm giá món nước</span>
                             <span>-{order.discount.amount.toLocaleString()}đ</span>
                           </div>
                         )}

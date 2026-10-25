@@ -9,6 +9,7 @@ export interface CartItem {
   combo?: string;
   note?: string;
   category?: string;
+  discountedTotal?: number; // line total after order discount (drinks only; 'Other' keeps full price)
 }
 
 export interface MenuItem {

@@ -2,6 +2,7 @@
 
 import { ClipboardList, Clock, User } from 'lucide-react';
 import { Order } from '@/types/pos.types';
+import LinePrice from './LinePrice';
 
 interface Props {
   orders: Order[];
@@ -67,14 +68,14 @@ export default function OrdersTab({ orders, isLoading, onRefresh }: Props) {
                       <p className="text-[10px] text-orange-400 mt-0.5">📝 {item.note}</p>
                     )}
                   </div>
-                  <span className="text-gray-600 shrink-0">{(item.price * item.quantity).toLocaleString()}đ</span>
+                  <LinePrice item={item} />
                 </div>
               ))}
             </div>
 
             {order.discount && order.discount.amount > 0 && (
               <div className="flex justify-between text-xs text-red-400 mb-1">
-                <span>Giảm ({order.discount.type === 'percent' ? `${order.discount.value}%` : 'VNĐ'})</span>
+                <span>Giảm món nước ({order.discount.type === 'percent' ? `${order.discount.value}%` : 'VNĐ'})</span>
                 <span>-{order.discount.amount.toLocaleString()}đ</span>
               </div>
             )}

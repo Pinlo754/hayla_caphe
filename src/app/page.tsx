@@ -15,6 +15,7 @@ import { getActiveJuiceCombos } from '@/app/lib/firebaseJuiceCombos';
 import { addPoints } from '@/app/lib/firebaseCustomers';
 import { uploadReceiptImage } from '@/app/lib/firebaseStorage';
 import { getPosSettings } from '@/app/lib/firebaseSettings';
+import { applyDiscount, lineTotal } from '@/lib/discount';
 
 import PosHeader from '@/components/pos/PosHeader';
 import BottomNav from '@/components/pos/BottomNav';
@@ -108,11 +109,12 @@ export default function MobilePOS() {
     };
   }, []);
 
-  const subtotal = cart.reduce((s, i) => s + i.price * i.quantity, 0);
-  const discountAmount = discountType === 'percent'
-    ? subtotal * (discountValue / 100)
-    : Number(discountValue);
-  const finalTotal = Math.max(0, subtotal - discountAmount);
+  const {
+    items: pricedItems,
+    subtotal,
+    amount: discountAmount,
+    total: finalTotal,
+  } = applyDiscount(cart, discountType, discountValue);
 
   const fetchOrders = async () => {
     setIsLoadingOrders(true);
@@ -192,9 +194,9 @@ export default function MobilePOS() {
 
       const orderData = {
         tableId: selectedTable,
-        items: cart,
+        items: pricedItems,
         totalPrice: finalTotal,
-        discount: discountValue > 0 ? { type: discountType, value: discountValue, amount: discountAmount } : null,
+        discount: discountAmount > 0 ? { type: discountType, value: discountValue, amount: discountAmount } : null,
         status: 'Complete' as const,
         paymentMethod,
         ...(receiptImage ? { receiptImage } : {}),
@@ -216,11 +218,11 @@ export default function MobilePOS() {
 
       await printReceipt({
         tableId: selectedTable,
-        items: cart,
+        items: pricedItems,
         subtotal,
-        discountType: discountValue > 0 ? discountType : undefined,
-        discountValue: discountValue > 0 ? discountValue : undefined,
-        discountAmount: discountValue > 0 ? discountAmount : undefined,
+        discountType: discountAmount > 0 ? discountType : undefined,
+        discountValue: discountAmount > 0 ? discountValue : undefined,
+        discountAmount: discountAmount > 0 ? discountAmount : undefined,
         total: finalTotal,
         paymentMethod,
         createdAt: new Date(),
@@ -272,7 +274,7 @@ export default function MobilePOS() {
       if (receiptFile && viewingOrder && autoDownloadReceipt) downloadReceiptLocally(receiptFile, viewingOrder.tableId);
 
       if (viewingOrder) {
-        const orderSubtotal = viewingOrder.items.reduce((s, i) => s + i.price * i.quantity, 0);
+        const orderSubtotal = viewingOrder.items.reduce((s, i) => s + lineTotal(i), 0);
         await printReceipt({
           tableId: viewingOrder.tableId,
           items: viewingOrder.items,

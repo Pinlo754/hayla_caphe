@@ -5,7 +5,10 @@ import { X, Minus, Plus, ShoppingBag, MessageSquare } from 'lucide-react';
 import { Customer, DiscountType, PaymentMethod } from '@/types/pos.types';
 import { usePosStore } from '@/store/usePosStore';
 import { TOPPING_PRICE } from '@/data/menuItems';
+import { applyDiscount, isDiscountable } from '@/lib/discount';
+import { BANK, buildQrUrl } from '@/lib/payment';
 import QRModal from './QRModal';
+import LinePrice from './LinePrice';
 import CustomerLoyalty from './CustomerLoyalty';
 import ReceiptCapture from './ReceiptCapture';
 
@@ -39,11 +42,14 @@ export default function CartDrawer({
   const [showQR, setShowQR] = useState(false);
   const [showQRModal, setShowQRModal] = useState(false);
 
-  const subtotal = cart.reduce((s, i) => s + i.price * i.quantity, 0);
-  const discountAmount = discountType === 'percent'
-    ? subtotal * (discountValue / 100)
-    : Number(discountValue);
-  const finalTotal = Math.max(0, subtotal - discountAmount);
+  const {
+    items: pricedItems,
+    subtotal,
+    discountableSubtotal,
+    amount: discountAmount,
+    total: finalTotal,
+  } = applyDiscount(cart, discountType, discountValue);
+  const hasNonDiscountable = cart.some((i) => !isDiscountable(i));
 
   const handleQuickDiscount = (pct: number) => {
     onDiscountTypeChange('percent');
@@ -82,7 +88,7 @@ export default function CartDrawer({
         {/* Items */}
         <div className="flex-1 overflow-y-auto">
           <div className="px-6 pt-4 space-y-4">
-            {cart.map((item) => (
+            {pricedItems.map((item) => (
               <div key={item.id}>
                 <div className="flex justify-between items-start gap-2">
                   {/* Item info */}
@@ -105,6 +111,16 @@ export default function CartDrawer({
                       <p className="text-[11px] text-emerald-600 mt-0.5">🍹 {item.combo}</p>
                     )}
                     <p className="text-orange-600 text-xs font-bold mt-0.5">{item.price.toLocaleString()}đ/phần</p>
+                    {discountAmount > 0 && (
+                      isDiscountable(item) ? (
+                        <p className="text-[11px] mt-0.5 flex items-center gap-1.5">
+                          <span className="text-gray-500">Sau giảm:</span>
+                          <LinePrice item={item} />
+                        </p>
+                      ) : (
+                        <p className="text-[11px] text-gray-400 mt-0.5">Không áp dụng giảm giá</p>
+                      )
+                    )}
                   </div>
 
                   {/* Controls */}
@@ -158,7 +174,10 @@ export default function CartDrawer({
 
           {/* Discount */}
           <div className="mx-6 mt-4 p-4 bg-gray-50 rounded-3xl">
-            <p className="font-bold text-gray-700 mb-3 text-sm">Giảm giá</p>
+            <p className="font-bold text-gray-700 text-sm">Giảm giá</p>
+            <p className="text-[11px] text-gray-400 mb-3">
+              Chỉ áp dụng cho món nước{hasNonDiscountable ? ' — món Other giữ nguyên giá' : ''}
+            </p>
             <div className="flex gap-2 mb-3">
               {QUICK_DISCOUNTS.map((pct) => (
                 <button
@@ -218,13 +237,13 @@ export default function CartDrawer({
             {showQR && paymentMethod === 'transfer' && (
               <div className="mt-4 p-4 bg-orange-50 rounded-3xl border-2 border-dashed border-orange-200 flex flex-col items-center animate-in zoom-in duration-300">
                 <img
-                  src={`https://img.vietqr.io/image/MB-4440122752004-compact2.jpg?amount=${finalTotal}&addInfo=Ban%20${selectedTable}`}
+                  src={buildQrUrl(finalTotal, `Ban ${selectedTable}`)}
                   alt="QR thanh toán"
                   onClick={() => setShowQRModal(true)}
                   className="w-40 h-40 object-contain rounded-xl shadow-md bg-white p-2 cursor-pointer active:scale-95 transition-transform"
                 />
                 <p className="mt-2 text-[10px] text-center text-gray-500">
-                  MB Bank · <b className="text-gray-900">4440122752004</b>
+                  {BANK.displayName} · <b className="text-gray-900">{BANK.account}</b>
                 </p>
                 <p className="text-[10px] text-orange-400 mt-0.5">Chạm để phóng to</p>
               </div>
@@ -246,10 +265,15 @@ export default function CartDrawer({
               <span>Tạm tính</span><span>{subtotal.toLocaleString()}đ</span>
             </div>
             {discountValue > 0 && (
-              <div className="flex justify-between text-red-500 text-sm font-bold">
-                <span>Giảm ({discountType === 'percent' ? `${discountValue}%` : 'VNĐ'})</span>
-                <span>-{discountAmount.toLocaleString()}đ</span>
-              </div>
+              <>
+                <div className="flex justify-between text-gray-400 text-xs">
+                  <span>Món nước được giảm</span><span>{discountableSubtotal.toLocaleString()}đ</span>
+                </div>
+                <div className="flex justify-between text-red-500 text-sm font-bold">
+                  <span>Giảm món nước ({discountType === 'percent' ? `${discountValue}%` : 'VNĐ'})</span>
+                  <span>-{discountAmount.toLocaleString()}đ</span>
+                </div>
+              </>
             )}
           </div>
           <div className="flex justify-between items-end border-t pt-3">
