@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { getOrders, deleteOrder } from '@/app/lib/firebaseOrders';
-import type { Order } from '@/types/pos.types';
+import { getOrders, deleteOrder, updateOrder } from '@/app/lib/firebaseOrders';
+import type { Order, PaymentMethod } from '@/types/pos.types';
 import LinePrice from '@/components/pos/LinePrice';
 import { Trash2, RefreshCw, ChevronDown, ChevronUp, Search, Banknote, CreditCard, Globe, UtensilsCrossed, Phone, MapPin, MessageSquare, User } from 'lucide-react';
 
@@ -10,6 +10,7 @@ export default function AdminOrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [updatingPaymentId, setUpdatingPaymentId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const [search, setSearch] = useState('');
@@ -33,6 +34,21 @@ export default function AdminOrdersPage() {
       setOrders((prev) => prev.filter((o) => o.id !== id));
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  const handleChangePayment = async (order: Order, method: PaymentMethod) => {
+    if (order.paymentMethod === method) return;
+    const label = method === 'cash' ? 'Tiền mặt' : 'Chuyển khoản';
+    if (!confirm(`Đổi phương thức thanh toán của đơn #${order.id.slice(-6)} sang ${label}?`)) return;
+    setUpdatingPaymentId(order.id);
+    try {
+      await updateOrder(order.id, { paymentMethod: method });
+      setOrders((prev) => prev.map((o) => (o.id === order.id ? { ...o, paymentMethod: method } : o)));
+    } catch (e) {
+      alert('Lỗi cập nhật: ' + (e instanceof Error ? e.message : 'Lỗi không xác định'));
+    } finally {
+      setUpdatingPaymentId(null);
     }
   };
 
@@ -268,6 +284,27 @@ export default function AdminOrdersPage() {
                             <span>-{order.discount.amount.toLocaleString()}đ</span>
                           </div>
                         )}
+                        {/* Edit payment method */}
+                        <div className="pt-2 border-t border-gray-200 flex items-center justify-between gap-3 flex-wrap">
+                          <span className="text-xs text-gray-500">Phương thức thanh toán</span>
+                          <div className="flex rounded-xl overflow-hidden border border-gray-200 bg-white">
+                            {([
+                              { key: 'cash' as PaymentMethod, label: 'Tiền mặt', icon: <Banknote size={12} />, active: 'bg-green-500 text-white' },
+                              { key: 'transfer' as PaymentMethod, label: 'Chuyển khoản', icon: <CreditCard size={12} />, active: 'bg-blue-500 text-white' },
+                            ]).map(({ key, label, icon, active }) => (
+                              <button
+                                key={key}
+                                onClick={() => handleChangePayment(order, key)}
+                                disabled={updatingPaymentId === order.id}
+                                className={`flex items-center gap-1 text-xs px-3 py-1.5 font-bold transition disabled:opacity-50 ${
+                                  order.paymentMethod === key ? active : 'text-gray-500 hover:bg-gray-50'
+                                }`}
+                              >
+                                {icon}{label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
                         {order.receiptImage && (
                           <div className="pt-2 border-t border-gray-200">
                             <p className="text-xs text-gray-500 mb-1.5 flex items-center gap-1">
