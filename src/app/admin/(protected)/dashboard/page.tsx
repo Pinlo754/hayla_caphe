@@ -33,6 +33,27 @@ function toDateStr(d: Date) { return d.toISOString().split('T')[0]; }
 
 function isCompleted(o: Order) { return o.status === 'completed' || o.status === 'Complete'; }
 
+/** Một điểm trên biểu đồ doanh thu, tách theo hình thức thanh toán */
+interface ChartPoint {
+  label: string;
+  revenue: number;
+  orders: number;
+  cash: number;
+  transfer: number;
+  cashOrders: number;
+  transferOrders: number;
+}
+
+const EMPTY_POINT = { revenue: 0, orders: 0, cash: 0, transfer: 0, cashOrders: 0, transferOrders: 0 };
+
+/** Cộng 1 đơn vào slot — đơn không ghi tiền mặt được tính là chuyển khoản (giống dailyStats) */
+function addToSlot(slot: ChartPoint, o: Order) {
+  slot.revenue += o.totalPrice;
+  slot.orders++;
+  if (o.paymentMethod === 'cash') { slot.cash += o.totalPrice; slot.cashOrders++; }
+  else { slot.transfer += o.totalPrice; slot.transferOrders++; }
+}
+
 /** Trả về [from, to] tương ứng với period đang chọn */
 function getPeriodRange(period: Period, dateFrom: string, dateTo: string): [Date, Date] {
   const now = new Date();
@@ -61,12 +82,19 @@ function getPeriodRange(period: Period, dateFrom: string, dateTo: string): [Date
 
 // ── Tooltip ───────────────────────────────────────────────────────────────────
 
-const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: { value: number }[]; label?: string }) => {
+const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: { value: number; payload: ChartPoint }[]; label?: string }) => {
   if (!active || !payload?.length) return null;
+  const point = payload[0]?.payload;
   return (
-    <div className="bg-gray-900 text-white px-3 py-2 rounded-xl text-xs shadow-xl">
-      <p className="text-gray-400 mb-0.5">{label}</p>
+    <div className="bg-gray-900 text-white px-3 py-2 rounded-xl text-xs shadow-xl space-y-0.5">
+      <p className="text-gray-400">{label}</p>
       <p className="font-bold text-orange-400">{(payload[0]?.value ?? 0).toLocaleString()}đ</p>
+      {point && (
+        <>
+          <p className="text-green-300">💵 {point.cash.toLocaleString()}đ</p>
+          <p className="text-blue-300">💳 {point.transfer.toLocaleString()}đ</p>
+        </>
+      )}
     </div>
   );
 };
@@ -102,7 +130,7 @@ export default function AdminDashboardPage() {
   const [chartOrders, setChartOrders] = useState<Order[]>([]);
   const [chartLoading, setChartLoading] = useState(false);
   const [usingArchivedStats, setUsingArchivedStats] = useState(false);
-  const [archivedChartData, setArchivedChartData] = useState<{ label: string; revenue: number; orders: number }[]>([]);
+  const [archivedChartData, setArchivedChartData] = useState<ChartPoint[]>([]);
 
   // Recent orders
   const [recentOrders, setRecentOrders] = useState<Order[]>([]);
@@ -203,7 +231,8 @@ export default function AdminDashboardPage() {
       if (period === 'month' && completed.length === 0) {
         const stats = await getDailyStatsByRange(from, to);
         if (stats.length > 0) {
-          setArchivedChartData(buildMonthlyChartFromStats(stats));
+          // Thống kê lưu trữ chỉ có tiền theo hình thức, không có số đơn theo hình thức
+          setArchivedChartData(buildMonthlyChartFromStats(stats).map((p) => ({ ...p, cashOrders: 0, transferOrders: 0 })));
           setUsingArchivedStats(true);
         }
       }
@@ -217,18 +246,15 @@ export default function AdminDashboardPage() {
 
   // ── Chart data computation ────────────────────────────────────────────────
 
-  const chartData = useMemo(() => {
+  const chartData: ChartPoint[] = useMemo(() => {
     if (usingArchivedStats) return archivedChartData;
 
     if (period === 'hour') {
-      const hours = Array.from({ length: 24 }, (_, i) => ({ label: `${i}h`, revenue: 0, orders: 0 }));
+      const hours = Array.from({ length: 24 }, (_, i) => ({ label: `${i}h`, ...EMPTY_POINT }));
       const todayStr = new Date().toDateString();
       chartOrders.forEach((o) => {
         const d = new Date(o.createdAt);
-        if (d.toDateString() === todayStr) {
-          hours[d.getHours()].revenue += o.totalPrice;
-          hours[d.getHours()].orders++;
-        }
+        if (d.toDateString() === todayStr) addToSlot(hours[d.getHours()], o);
       });
       return hours;
     }
@@ -236,11 +262,11 @@ export default function AdminDashboardPage() {
     if (period === 'day') {
       const days = Array.from({ length: 7 }, (_, i) => {
         const d = new Date(); d.setDate(d.getDate() - (6 - i));
-        return { label: d.toLocaleDateString('vi-VN', { weekday: 'short', day: 'numeric' }), dateStr: d.toDateString(), revenue: 0, orders: 0 };
+        return { label: d.toLocaleDateString('vi-VN', { weekday: 'short', day: 'numeric' }), dateStr: d.toDateString(), ...EMPTY_POINT };
       });
       chartOrders.forEach((o) => {
         const slot = days.find((d) => d.dateStr === new Date(o.createdAt).toDateString());
-        if (slot) { slot.revenue += o.totalPrice; slot.orders++; }
+        if (slot) addToSlot(slot, o);
       });
       return days;
     }
@@ -249,12 +275,12 @@ export default function AdminDashboardPage() {
       const weeks = Array.from({ length: 4 }, (_, i) => {
         const start = new Date(); start.setDate(start.getDate() - (3 - i) * 7 - start.getDay()); start.setHours(0, 0, 0, 0);
         const end = new Date(start); end.setDate(start.getDate() + 6); end.setHours(23, 59, 59, 999);
-        return { label: `${start.getDate()}/${start.getMonth() + 1}`, start: start.getTime(), end: end.getTime(), revenue: 0, orders: 0 };
+        return { label: `${start.getDate()}/${start.getMonth() + 1}`, start: start.getTime(), end: end.getTime(), ...EMPTY_POINT };
       });
       chartOrders.forEach((o) => {
         const t = new Date(o.createdAt).getTime();
         const slot = weeks.find((w) => t >= w.start && t <= w.end);
-        if (slot) { slot.revenue += o.totalPrice; slot.orders++; }
+        if (slot) addToSlot(slot, o);
       });
       return weeks;
     }
@@ -262,12 +288,12 @@ export default function AdminDashboardPage() {
     if (period === 'month') {
       const months = Array.from({ length: 12 }, (_, i) => {
         const d = new Date(); d.setMonth(d.getMonth() - (11 - i));
-        return { label: `T${d.getMonth() + 1}/${d.getFullYear()}`, month: d.getMonth(), year: d.getFullYear(), revenue: 0, orders: 0 };
+        return { label: `T${d.getMonth() + 1}/${d.getFullYear()}`, month: d.getMonth(), year: d.getFullYear(), ...EMPTY_POINT };
       });
       chartOrders.forEach((o) => {
         const d = new Date(o.createdAt);
         const slot = months.find((m) => m.month === d.getMonth() && m.year === d.getFullYear());
-        if (slot) { slot.revenue += o.totalPrice; slot.orders++; }
+        if (slot) addToSlot(slot, o);
       });
       return months;
     }
@@ -279,13 +305,13 @@ export default function AdminDashboardPage() {
     const dayCount = Math.round((to.getTime() - from.getTime()) / 86400000) + 1;
     const days = Array.from({ length: Math.min(dayCount, 180) }, (_, i) => {
       const d = new Date(from.getTime() + i * 86400000);
-      return { label: `${d.getDate()}/${d.getMonth() + 1}`, dateStr: d.toDateString(), revenue: 0, orders: 0 };
+      return { label: `${d.getDate()}/${d.getMonth() + 1}`, dateStr: d.toDateString(), ...EMPTY_POINT };
     });
     chartOrders.forEach((o) => {
       const od = new Date(o.createdAt);
       if (od >= from && od <= to) {
         const slot = days.find((d) => d.dateStr === od.toDateString());
-        if (slot) { slot.revenue += o.totalPrice; slot.orders++; }
+        if (slot) addToSlot(slot, o);
       }
     });
     return days;
@@ -293,6 +319,10 @@ export default function AdminDashboardPage() {
 
   const chartTotal = chartData.reduce((s, d) => s + d.revenue, 0);
   const chartOrderCount = chartData.reduce((s, d) => s + d.orders, 0);
+  const chartCash = chartData.reduce((s, d) => s + d.cash, 0);
+  const chartTransfer = chartData.reduce((s, d) => s + d.transfer, 0);
+  const chartCashOrders = chartData.reduce((s, d) => s + d.cashOrders, 0);
+  const chartTransferOrders = chartData.reduce((s, d) => s + d.transferOrders, 0);
   const maxRevenue = Math.max(...chartData.map((d) => d.revenue), 1);
 
   // ── Excel export (current period) ────────────────────────────────────────
@@ -310,14 +340,16 @@ export default function AdminDashboardPage() {
       const ws1 = XLSX.utils.aoa_to_sheet([
         ['Khoảng thời gian', periodLabels[period]],
         ['Tổng doanh thu', chartTotal],
+        ['Tiền mặt', chartCash],
+        ['Chuyển khoản', chartTransfer],
         ['Tổng số đơn', chartOrderCount],
         [],
-        ['Thời điểm', 'Doanh thu (đ)', 'Số đơn'],
-        ...chartData.map((d) => [d.label, d.revenue, d.orders]),
+        ['Thời điểm', 'Doanh thu (đ)', 'Tiền mặt (đ)', 'Chuyển khoản (đ)', 'Số đơn'],
+        ...chartData.map((d) => [d.label, d.revenue, d.cash, d.transfer, d.orders]),
         [],
-        ['TỔNG', chartTotal, chartOrderCount],
+        ['TỔNG', chartTotal, chartCash, chartTransfer, chartOrderCount],
       ]);
-      ws1['!cols'] = [{ wch: 28 }, { wch: 18 }, { wch: 10 }];
+      ws1['!cols'] = [{ wch: 28 }, { wch: 18 }, { wch: 16 }, { wch: 18 }, { wch: 10 }];
 
       const ws2 = XLSX.utils.aoa_to_sheet([
         ['Mã đơn', 'Loại', 'Tổng tiền (đ)', 'Thanh toán', 'Ngày giờ', 'Các món'],
@@ -643,6 +675,38 @@ ${todayBreakdown.pendingCount > 0 ? `
             </button>
           </div>
         </div>
+
+        {/* ── Tách theo hình thức thanh toán ── */}
+        {chartLoading ? (
+          <div className="grid grid-cols-2 gap-2 mb-4">
+            {[1, 2].map((i) => <div key={i} className="h-16 bg-gray-50 rounded-xl animate-pulse" />)}
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-2 mb-4">
+            <div className="bg-green-50 rounded-xl px-3.5 py-3">
+              <div className="flex items-center gap-1.5 mb-1">
+                <Banknote size={14} className="text-green-600" />
+                <span className="text-xs font-bold text-green-700">Tiền mặt</span>
+              </div>
+              <p className="text-base font-bold text-green-700">{chartCash.toLocaleString()}đ</p>
+              <p className="text-[11px] text-green-500 mt-0.5">
+                {!usingArchivedStats && `${chartCashOrders} đơn · `}
+                {chartTotal > 0 ? `${((chartCash / chartTotal) * 100).toFixed(0)}%` : '0%'}
+              </p>
+            </div>
+            <div className="bg-blue-50 rounded-xl px-3.5 py-3">
+              <div className="flex items-center gap-1.5 mb-1">
+                <CreditCard size={14} className="text-blue-500" />
+                <span className="text-xs font-bold text-blue-600">Chuyển khoản</span>
+              </div>
+              <p className="text-base font-bold text-blue-600">{chartTransfer.toLocaleString()}đ</p>
+              <p className="text-[11px] text-blue-400 mt-0.5">
+                {!usingArchivedStats && `${chartTransferOrders} đơn · `}
+                {chartTotal > 0 ? `${((chartTransfer / chartTotal) * 100).toFixed(0)}%` : '0%'}
+              </p>
+            </div>
+          </div>
+        )}
 
         {period === 'custom' && (
           <div className="flex items-center gap-2 mb-4 p-3 bg-orange-50 rounded-xl">

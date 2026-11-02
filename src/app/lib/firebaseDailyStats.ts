@@ -150,20 +150,24 @@ export function buildMonthlyChartFromStats(stats: DailyStat[]): {
   label: string;
   revenue: number;
   orders: number;
+  cash: number;
+  transfer: number;
 }[] {
-  const monthly: Record<string, { revenue: number; orders: number }> = {};
+  const monthly: Record<string, { revenue: number; orders: number; cash: number; transfer: number }> = {};
 
   stats.forEach((s) => {
     const ym = s.date.slice(0, 7);
-    if (!monthly[ym]) monthly[ym] = { revenue: 0, orders: 0 };
+    if (!monthly[ym]) monthly[ym] = { revenue: 0, orders: 0, cash: 0, transfer: 0 };
     monthly[ym].revenue += s.revenue;
     monthly[ym].orders += s.orders;
+    monthly[ym].cash += s.cashRevenue ?? 0;
+    monthly[ym].transfer += s.transferRevenue ?? 0;
   });
 
   return Object.entries(monthly)
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([ym, data]) => {
       const [year, month] = ym.split('-');
-      return { label: `T${parseInt(month)}/${year}`, revenue: data.revenue, orders: data.orders };
+      return { label: `T${parseInt(month)}/${year}`, ...data };
     });
 }
