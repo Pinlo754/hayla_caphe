@@ -4,24 +4,29 @@ import { useState, useEffect, useRef } from 'react';
 import { ShoppingCart } from 'lucide-react';
 
 import { usePosStore } from '@/store/usePosStore';
+import { useAuthStore } from '@/store/useAuthStore';
 import { menuItems as staticMenu } from '@/data/menuItems';
 import { printer } from '@/lib/bluetoothPrinter';
 import { getOrders, createOrder, updateOrder } from '@/app/lib/firebaseOrders';
 import { getMenuItems } from '@/app/lib/firebaseMenu';
 import { getToppings } from '@/app/lib/firebaseToppings';
 import type { ToppingItem } from '@/app/lib/firebaseToppings';
+import { getActiveJuiceCombos } from '@/app/lib/firebaseJuiceCombos';
 import { addPoints } from '@/app/lib/firebaseCustomers';
 import { uploadReceiptImage } from '@/app/lib/firebaseStorage';
 import { getPosSettings } from '@/app/lib/firebaseSettings';
+import { applyDiscount, lineTotal } from '@/lib/discount';
 
 import PosHeader from '@/components/pos/PosHeader';
 import BottomNav from '@/components/pos/BottomNav';
 import TableGrid from '@/components/pos/TableGrid';
 import MenuTab from '@/components/pos/MenuTab';
 import OrdersTab from '@/components/pos/OrdersTab';
-import DashboardTab from '@/components/pos/DashboardTab';
+import ChecklistTab from '@/components/pos/ChecklistTab';
+import StatsTab from '@/components/pos/StatsTab';
 import CartDrawer from '@/components/pos/CartDrawer';
 import OrderDetailModal from '@/components/pos/OrderDetailModal';
+import LoginGate from '@/components/pos/LoginGate';
 
 import type { ActiveTab, Customer, DiscountType, MenuItem, Order, PaymentMethod, ReceiptData } from '@/types/pos.types';
 
@@ -45,6 +50,12 @@ function downloadReceiptLocally(file: File, tableId: number) {
 
 export default function MobilePOS() {
   const { cart, selectedTable, selectTable, clearCart, setCart } = usePosStore();
+  const { session, loading: authLoading, init: initAuth, logout } = useAuthStore();
+
+  useEffect(() => {
+    initAuth();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const [activeTab, setActiveTab] = useState<ActiveTab>('tables');
   const [showCart, setShowCart] = useState(false);
@@ -56,6 +67,7 @@ export default function MobilePOS() {
 
   const [menuData, setMenuData] = useState<MenuItem[]>([]);
   const [toppingsData, setToppingsData] = useState<ToppingItem[]>([]);
+  const [juiceCombosData, setJuiceCombosData] = useState<string[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [autoDownloadReceipt, setAutoDownloadReceipt] = useState(true);
@@ -81,6 +93,7 @@ export default function MobilePOS() {
         setMenuData(fallback);
       });
     getToppings().then(setToppingsData).catch(() => {});
+    getActiveJuiceCombos().then(setJuiceCombosData).catch(() => {});
     getPosSettings().then((s) => setAutoDownloadReceipt(s.autoDownloadReceipt));
   }, []);
 
@@ -96,11 +109,12 @@ export default function MobilePOS() {
     };
   }, []);
 
-  const subtotal = cart.reduce((s, i) => s + i.price * i.quantity, 0);
-  const discountAmount = discountType === 'percent'
-    ? subtotal * (discountValue / 100)
-    : Number(discountValue);
-  const finalTotal = Math.max(0, subtotal - discountAmount);
+  const {
+    items: pricedItems,
+    subtotal,
+    amount: discountAmount,
+    total: finalTotal,
+  } = applyDiscount(cart, discountType, discountValue);
 
   const fetchOrders = async () => {
     setIsLoadingOrders(true);
@@ -115,7 +129,7 @@ export default function MobilePOS() {
   };
 
   useEffect(() => {
-    if (activeTab === 'orders' || activeTab === 'tables' || activeTab === 'dashboard') {
+    if (activeTab === 'orders' || activeTab === 'tables') {
       fetchOrders();
     }
   }, [activeTab]);
@@ -180,9 +194,9 @@ export default function MobilePOS() {
 
       const orderData = {
         tableId: selectedTable,
-        items: cart,
+        items: pricedItems,
         totalPrice: finalTotal,
-        discount: discountValue > 0 ? { type: discountType, value: discountValue, amount: discountAmount } : null,
+        discount: discountAmount > 0 ? { type: discountType, value: discountValue, amount: discountAmount } : null,
         status: 'Complete' as const,
         paymentMethod,
         ...(receiptImage ? { receiptImage } : {}),
@@ -191,7 +205,12 @@ export default function MobilePOS() {
       if (editingOrderId) {
         await updateOrder(editingOrderId, orderData);
       } else {
-        await createOrder({ ...orderData, createdAt: new Date().toISOString() });
+        await createOrder({
+          ...orderData,
+          staffId: session?.id,
+          staffName: session?.name,
+          createdAt: new Date().toISOString(),
+        });
       }
 
       // Order saved — save the receipt photo to the local device (if enabled in admin settings)
@@ -199,11 +218,11 @@ export default function MobilePOS() {
 
       await printReceipt({
         tableId: selectedTable,
-        items: cart,
+        items: pricedItems,
         subtotal,
-        discountType: discountValue > 0 ? discountType : undefined,
-        discountValue: discountValue > 0 ? discountValue : undefined,
-        discountAmount: discountValue > 0 ? discountAmount : undefined,
+        discountType: discountAmount > 0 ? discountType : undefined,
+        discountValue: discountAmount > 0 ? discountValue : undefined,
+        discountAmount: discountAmount > 0 ? discountAmount : undefined,
         total: finalTotal,
         paymentMethod,
         createdAt: new Date(),
@@ -255,7 +274,7 @@ export default function MobilePOS() {
       if (receiptFile && viewingOrder && autoDownloadReceipt) downloadReceiptLocally(receiptFile, viewingOrder.tableId);
 
       if (viewingOrder) {
-        const orderSubtotal = viewingOrder.items.reduce((s, i) => s + i.price * i.quantity, 0);
+        const orderSubtotal = viewingOrder.items.reduce((s, i) => s + lineTotal(i), 0);
         await printReceipt({
           tableId: viewingOrder.tableId,
           items: viewingOrder.items,
@@ -281,6 +300,18 @@ export default function MobilePOS() {
     }
   };
 
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-gray-50">
+        <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!session) {
+    return <LoginGate />;
+  }
+
   return (
     <div className="flex flex-col h-screen bg-gray-50 pb-20">
       <PosHeader
@@ -289,6 +320,8 @@ export default function MobilePOS() {
         printerName={printerName}
         onConnectPrinter={handleConnectPrinter}
         onDisconnectPrinter={handleDisconnectPrinter}
+        staffName={session.name}
+        onLogout={logout}
       />
 
       <main className="flex-1 overflow-y-auto p-4">
@@ -301,7 +334,7 @@ export default function MobilePOS() {
           />
         )}
 
-        {activeTab === 'menu' && <MenuTab products={menuData} toppings={toppingsData} />}
+        {activeTab === 'menu' && <MenuTab products={menuData} toppings={toppingsData} juiceCombos={juiceCombosData} />}
 
         {activeTab === 'orders' && (
           <OrdersTab
@@ -311,13 +344,9 @@ export default function MobilePOS() {
           />
         )}
 
-        {activeTab === 'dashboard' && (
-          <DashboardTab
-            orders={orders}
-            isLoading={isLoadingOrders}
-            onRefresh={fetchOrders}
-          />
-        )}
+        {activeTab === 'checklist' && <ChecklistTab />}
+
+        {activeTab === 'stats' && <StatsTab />}
       </main>
 
       {cart.length > 0 && activeTab === 'menu' && (

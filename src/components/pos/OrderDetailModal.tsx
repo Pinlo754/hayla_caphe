@@ -3,8 +3,11 @@
 import { useState } from 'react';
 import { X, Printer } from 'lucide-react';
 import { Order, PaymentMethod } from '@/types/pos.types';
+import { lineTotal } from '@/lib/discount';
+import { buildQrUrl } from '@/lib/payment';
 import QRModal from './QRModal';
 import ReceiptCapture from './ReceiptCapture';
+import LinePrice from './LinePrice';
 
 interface Props {
   order: Order;
@@ -29,7 +32,10 @@ export default function OrderDetailModal({ order, paymentMethod, isProcessing, r
           <div className="px-6 py-5 border-b flex justify-between items-start">
             <div>
               <h2 className="text-xl text-gray-800">Bàn {order.tableId}</h2>
-              <p className="text-gray-400 text-xs">Đơn #{order.id.slice(-6)}</p>
+              <p className="text-gray-400 text-xs">
+                Đơn #{order.id.slice(-6)}
+                {order.staffName && ` · ${order.staffName}`}
+              </p>
             </div>
             <button onClick={onClose} className="p-2 bg-gray-100 rounded-full">
               <X size={20} className="text-black" />
@@ -59,7 +65,7 @@ export default function OrderDetailModal({ order, paymentMethod, isProcessing, r
                       <p className="text-[11px] text-orange-500 mt-0.5">📝 {item.note}</p>
                     )}
                   </div>
-                  <span className="text-gray-600 shrink-0">{(item.price * item.quantity).toLocaleString()}đ</span>
+                  <LinePrice item={item} />
                 </div>
               </div>
             ))}
@@ -68,10 +74,10 @@ export default function OrderDetailModal({ order, paymentMethod, isProcessing, r
               <>
                 <div className="flex justify-between text-sm text-gray-500 pt-2 border-t border-dashed">
                   <span>Tạm tính</span>
-                  <span>{order.items?.reduce((s, i) => s + i.price * i.quantity, 0).toLocaleString()}đ</span>
+                  <span>{order.items?.reduce((s, i) => s + lineTotal(i), 0).toLocaleString()}đ</span>
                 </div>
                 <div className="flex justify-between text-sm text-red-500 font-bold">
-                  <span>Giảm ({order.discount.type === 'percent' ? `${order.discount.value}%` : 'VNĐ'})</span>
+                  <span>Giảm món nước ({order.discount.type === 'percent' ? `${order.discount.value}%` : 'VNĐ'})</span>
                   <span>-{order.discount.amount.toLocaleString()}đ</span>
                 </div>
               </>
@@ -97,7 +103,7 @@ export default function OrderDetailModal({ order, paymentMethod, isProcessing, r
                 <>
                   <div className="mt-4 p-4 bg-orange-50 rounded-2xl flex flex-col items-center">
                     <img
-                      src={`https://img.vietqr.io/image/MB-4440122752004-compact2.jpg?amount=${order.totalPrice}&addInfo=Ban%20${order.tableId}`}
+                      src={buildQrUrl(order.totalPrice, `Ban ${order.tableId}`)}
                       className="w-32 h-32 object-contain cursor-pointer active:scale-95 transition-transform"
                       onClick={() => setQrExpanded(true)}
                     />

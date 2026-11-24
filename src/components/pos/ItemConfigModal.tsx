@@ -9,11 +9,12 @@ import { UPSIZE_PRICE } from '@/data/menuItems';
 interface Props {
   item: MenuItem;
   toppings: ToppingItem[];
+  juiceCombos?: string[];
   onClose: () => void;
   onAdd: (cartItem: Omit<CartItem, 'quantity'>) => void;
 }
 
-export default function ItemConfigModal({ item, toppings: allToppings, onClose, onAdd }: Props) {
+export default function ItemConfigModal({ item, toppings: allToppings, juiceCombos, onClose, onAdd }: Props) {
   const [isUpsized, setIsUpsized] = useState(false);
   const [selectedToppings, setSelectedToppings] = useState<string[]>([]);
   const [selectedCombo, setSelectedCombo] = useState<string | null>(null);
@@ -160,7 +161,7 @@ export default function ItemConfigModal({ item, toppings: allToppings, onClose, 
                 </span>
               </div>
               <div className="space-y-1.5">
-                {item.combos.map((combo) => {
+                {(juiceCombos && juiceCombos.length > 0 ? juiceCombos : item.combos).map((combo) => {
                   const isSelected = selectedCombo === combo;
                   return (
                     <button

@@ -1,6 +1,6 @@
 'use client';
 
-import { Bluetooth, BluetoothOff } from 'lucide-react';
+import { Bluetooth, BluetoothOff, User, LogOut } from 'lucide-react';
 import { ActiveTab } from '@/types/pos.types';
 import { usePosStore } from '@/store/usePosStore';
 
@@ -10,17 +10,35 @@ interface Props {
   printerName: string;
   onConnectPrinter: () => void;
   onDisconnectPrinter: () => void;
+  staffName?: string;
+  onLogout?: () => void;
 }
 
-export default function PosHeader({ activeTab, printerConnected, printerName, onConnectPrinter, onDisconnectPrinter }: Props) {
+export default function PosHeader({ activeTab, printerConnected, printerName, onConnectPrinter, onDisconnectPrinter, staffName, onLogout }: Props) {
   const { selectedTable } = usePosStore();
+
+  const handleLogout = () => {
+    if (onLogout && confirm('Đăng xuất khỏi tài khoản?')) onLogout();
+  };
 
   return (
     <header className="bg-white px-4 py-3 border-b flex justify-between items-center sticky top-0 z-20 shadow-sm">
-      <h1 className="font-bold text-orange-600 text-xl tracking-tighter italic">Hay là cà phê</h1>
+      <div>
+        <h1 className="font-bold text-orange-600 text-xl tracking-tighter italic">Hay là cà phê</h1>
+        {staffName && (
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-1 text-[10px] text-gray-400 font-medium mt-0.5 hover:text-red-500 transition"
+          >
+            <User size={10} />
+            {staffName}
+            <LogOut size={10} className="ml-0.5" />
+          </button>
+        )}
+      </div>
 
       <div className="flex items-center gap-2">
-        {selectedTable && activeTab !== 'orders' && activeTab !== 'dashboard' && (
+        {selectedTable && activeTab !== 'orders' && activeTab !== 'checklist' && (
           <span className="bg-orange-100 text-orange-700 px-3 py-1 rounded-full text-xs font-bold">
             Bàn {selectedTable}
           </span>
