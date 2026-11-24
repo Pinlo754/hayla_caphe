@@ -1,3 +1,4 @@
+
 import { db } from './firebase';
 import {
   collection,
@@ -7,6 +8,7 @@ import {
   updateDoc,
   deleteDoc,
   serverTimestamp,
+  writeBatch,
 } from 'firebase/firestore';
 import { TOPPINGS, TOPPING_PRICE } from '@/data/menuItems';
 
@@ -40,14 +42,16 @@ async function fetchAll(): Promise<ToppingItem[]> {
 }
 
 async function seedToppings(): Promise<void> {
+  const batch = writeBatch(db);
   for (const name of TOPPINGS) {
-    await addDoc(collection(db, COL), {
+    batch.set(doc(collection(db, COL)), {
       name,
       price: TOPPING_PRICE,
       available: true,
       createdAt: serverTimestamp(),
     });
   }
+  await batch.commit();
 }
 
 // POS: only available toppings
