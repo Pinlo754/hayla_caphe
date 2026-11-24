@@ -7,6 +7,7 @@ import {
   deleteDoc,
   setDoc,
   serverTimestamp,
+  writeBatch,
 } from 'firebase/firestore';
 import type { MenuItem } from '@/types/pos.types';
 import { menuItems as staticMenu } from '@/data/menuItems';
@@ -42,13 +43,17 @@ async function fetchAll(): Promise<ReturnType<typeof docToMenuItem>[]> {
 }
 
 async function seedMenuItems(): Promise<void> {
+  // One atomic batch: either every item is written or none is,
+  // so an interrupted page load can't leave a half-seeded menu.
+  const batch = writeBatch(db);
   for (const item of staticMenu) {
-    await setDoc(doc(db, COL, String(item.id)), {
+    batch.set(doc(db, COL, String(item.id)), {
       ...clean(item),
       available: true,
       createdAt: serverTimestamp(),
     });
   }
+  await batch.commit();
 }
 
 // POS: only available items
