@@ -25,6 +25,10 @@ function toOrder(docSnap: { id: string; data: () => Record<string, unknown> }): 
   return {
     ...data,
     id: docSnap.id,
+    // Older or hand-edited docs may lack these fields; default them so
+    // pages that read order.items / order.totalPrice don't crash.
+    items: Array.isArray(data.items) ? data.items : [],
+    totalPrice: Number(data.totalPrice) || 0,
     createdAt:
       data.createdAt instanceof Timestamp
         ? data.createdAt.toDate().toISOString()
