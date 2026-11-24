@@ -1,19 +1,23 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { getOrders, deleteOrder } from '@/app/lib/firebaseOrders';
-import type { Order } from '@/types/pos.types';
-import { Trash2, RefreshCw, ChevronDown, ChevronUp, Search, Banknote, CreditCard } from 'lucide-react';
+import { getOrders, deleteOrder, updateOrder } from '@/app/lib/firebaseOrders';
+import type { Order, PaymentMethod } from '@/types/pos.types';
+import LinePrice from '@/components/pos/LinePrice';
+import { Trash2, RefreshCw, ChevronDown, ChevronUp, Search, Banknote, CreditCard, Globe, UtensilsCrossed, Phone, MapPin, MessageSquare, User } from 'lucide-react';
 
 export default function AdminOrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [updatingPaymentId, setUpdatingPaymentId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [paymentFilter, setPaymentFilter] = useState('all');
+  const [typeFilter, setTypeFilter] = useState('all');
+  const [staffFilter, setStaffFilter] = useState('all');
 
   const load = () => {
     setLoading(true);
@@ -33,18 +37,47 @@ export default function AdminOrdersPage() {
     }
   };
 
+  const handleChangePayment = async (order: Order, method: PaymentMethod) => {
+    if (order.paymentMethod === method) return;
+    const label = method === 'cash' ? 'Tiền mặt' : 'Chuyển khoản';
+    if (!confirm(`Đổi phương thức thanh toán của đơn #${order.id.slice(-6)} sang ${label}?`)) return;
+    setUpdatingPaymentId(order.id);
+    try {
+      await updateOrder(order.id, { paymentMethod: method });
+      setOrders((prev) => prev.map((o) => (o.id === order.id ? { ...o, paymentMethod: method } : o)));
+    } catch (e) {
+      alert('Lỗi cập nhật: ' + (e instanceof Error ? e.message : 'Lỗi không xác định'));
+    } finally {
+      setUpdatingPaymentId(null);
+    }
+  };
+
+  const staffOptions = useMemo(
+    () => [...new Set(orders.map((o) => o.staffName).filter((n): n is string => !!n))].sort(),
+    [orders]
+  );
+
   const filtered = useMemo(() => {
     return orders.filter((o) => {
+      const isOnline = o.orderType === 'online' || o.tableId === 0;
       if (statusFilter === 'pending' && o.status !== 'pending') return false;
       if (statusFilter === 'completed' && o.status === 'pending') return false;
       if (paymentFilter !== 'all' && o.paymentMethod !== paymentFilter) return false;
+      if (typeFilter === 'online' && !isOnline) return false;
+      if (typeFilter === 'dine-in' && isOnline) return false;
+      if (staffFilter !== 'all' && o.staffName !== staffFilter) return false;
       if (search.trim()) {
         const s = search.toLowerCase();
-        if (!`bàn ${o.tableId}`.includes(s) && !o.id.toLowerCase().includes(s)) return false;
+        const matchTable = `bàn ${o.tableId}`.includes(s);
+        const matchId = o.id.toLowerCase().includes(s);
+        const matchCustomer = o.customerInfo
+          ? o.customerInfo.name.toLowerCase().includes(s) || o.customerInfo.phone.includes(s)
+          : false;
+        if (!matchTable && !matchId && !matchCustomer) return false;
       }
       return true;
     });
-  }, [orders, statusFilter, paymentFilter, search]);
+  }, [orders, statusFilter, paymentFilter, typeFilter, staffFilter, search]);
 
   const totalRevenue = useMemo(
     () => filtered.filter((o) => o.status !== 'pending').reduce((s, o) => s + o.totalPrice, 0),
@@ -103,6 +136,35 @@ export default function AdminOrdersPage() {
               {label}
             </button>
           ))}
+          <div className="w-px bg-gray-200" />
+          {[
+            { key: 'all', label: 'Tất cả loại', icon: null },
+            { key: 'online', label: 'Online', icon: <Globe size={10} /> },
+            { key: 'dine-in', label: 'Tại bàn', icon: <UtensilsCrossed size={10} /> },
+          ].map(({ key, label, icon }) => (
+            <button
+              key={key}
+              onClick={() => setTypeFilter(key)}
+              className={`flex items-center gap-1 text-xs px-3 py-1.5 rounded-xl font-bold transition ${typeFilter === key ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-500'}`}
+            >
+              {icon}{label}
+            </button>
+          ))}
+          {staffOptions.length > 0 && (
+            <>
+              <div className="w-px bg-gray-200" />
+              <select
+                value={staffFilter}
+                onChange={(e) => setStaffFilter(e.target.value)}
+                className="text-xs px-3 py-1.5 rounded-xl font-bold bg-gray-100 text-gray-500 outline-none"
+              >
+                <option value="all">Mọi nhân viên</option>
+                {staffOptions.map((name) => (
+                  <option key={name} value={name}>{name}</option>
+                ))}
+              </select>
+            </>
+          )}
         </div>
       </div>
 
@@ -131,19 +193,36 @@ export default function AdminOrdersPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-[10px] font-mono text-gray-400">#{order.id.slice(-6)}</span>
-                        <span className="font-semibold text-gray-800 text-sm">Bàn {order.tableId}</span>
+                        {order.orderType === 'online' || order.tableId === 0 ? (
+                          <span className="flex items-center gap-0.5 text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-600">
+                            <Globe size={9} /> Online
+                          </span>
+                        ) : (
+                          <span className="font-semibold text-gray-800 text-sm">Bàn {order.tableId}</span>
+                        )}
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                           order.status === 'pending' ? 'bg-orange-50 text-orange-600' : 'bg-green-50 text-green-600'
                         }`}>
                           {order.status === 'pending' ? 'Chờ TT' : 'Xong'}
                         </span>
                       </div>
-                      <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-2">
+                      {order.customerInfo ? (
+                        <p className="text-xs font-medium text-gray-600 mt-0.5 truncate">
+                          {order.customerInfo.name} · {order.customerInfo.phone}
+                        </p>
+                      ) : null}
+                      <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-2 flex-wrap">
                         <span>{new Date(order.createdAt).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
                         {order.paymentMethod && (
                           <span className="flex items-center gap-0.5">
                             {order.paymentMethod === 'cash' ? <Banknote size={10} /> : <CreditCard size={10} />}
                             {order.paymentMethod === 'cash' ? 'Tiền mặt' : 'CK'}
+                          </span>
+                        )}
+                        {order.staffName && (
+                          <span className="flex items-center gap-0.5">
+                            <User size={10} />
+                            {order.staffName}
                           </span>
                         )}
                       </p>
@@ -168,7 +247,27 @@ export default function AdminOrdersPage() {
                   {/* Expanded items */}
                   {expandedId === order.id && (
                     <div className="px-5 pb-4 bg-gray-50 border-t border-gray-100">
-                      <div className="space-y-1.5 pt-3">
+                      {/* Customer info (online orders) */}
+                      {order.customerInfo && (
+                        <div className="mt-3 mb-3 bg-blue-50 rounded-xl p-3 border border-blue-100 space-y-1.5 text-xs">
+                          <p className="font-bold text-blue-700 text-[10px] uppercase tracking-widest mb-1">Thông tin khách hàng</p>
+                          <p className="flex items-center gap-1.5 text-gray-700">
+                            <Phone size={11} className="text-blue-400" />
+                            <strong>{order.customerInfo.name}</strong> · {order.customerInfo.phone}
+                          </p>
+                          <p className="flex items-start gap-1.5 text-gray-600">
+                            <MapPin size={11} className="text-blue-400 mt-0.5 shrink-0" />
+                            {order.customerInfo.address}
+                          </p>
+                          {order.customerInfo.note && (
+                            <p className="flex items-start gap-1.5 text-gray-500">
+                              <MessageSquare size={11} className="text-blue-300 mt-0.5 shrink-0" />
+                              {order.customerInfo.note}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                      <div className="space-y-1.5 pt-1">
                         {order.items.map((item, i) => (
                           <div key={i} className="flex justify-between text-sm">
                             <span className="text-gray-600">
@@ -176,15 +275,36 @@ export default function AdminOrdersPage() {
                               {item.size && <span className="text-xs text-orange-400 ml-1">[{item.size}]</span>}
                               {item.toppings?.length ? <span className="text-xs text-gray-400 ml-1">+{item.toppings.join(', ')}</span> : null}
                             </span>
-                            <span className="text-gray-700 font-medium">{(item.price * item.quantity).toLocaleString()}đ</span>
+                            <LinePrice item={item} className="text-gray-700 font-medium" />
                           </div>
                         ))}
                         {order.discount && order.discount.amount > 0 && (
                           <div className="flex justify-between text-xs text-red-400 pt-1 border-t border-gray-200">
-                            <span>Giảm giá</span>
+                            <span>Giảm giá món nước</span>
                             <span>-{order.discount.amount.toLocaleString()}đ</span>
                           </div>
                         )}
+                        {/* Edit payment method */}
+                        <div className="pt-2 border-t border-gray-200 flex items-center justify-between gap-3 flex-wrap">
+                          <span className="text-xs text-gray-500">Phương thức thanh toán</span>
+                          <div className="flex rounded-xl overflow-hidden border border-gray-200 bg-white">
+                            {([
+                              { key: 'cash' as PaymentMethod, label: 'Tiền mặt', icon: <Banknote size={12} />, active: 'bg-green-500 text-white' },
+                              { key: 'transfer' as PaymentMethod, label: 'Chuyển khoản', icon: <CreditCard size={12} />, active: 'bg-blue-500 text-white' },
+                            ]).map(({ key, label, icon, active }) => (
+                              <button
+                                key={key}
+                                onClick={() => handleChangePayment(order, key)}
+                                disabled={updatingPaymentId === order.id}
+                                className={`flex items-center gap-1 text-xs px-3 py-1.5 font-bold transition disabled:opacity-50 ${
+                                  order.paymentMethod === key ? active : 'text-gray-500 hover:bg-gray-50'
+                                }`}
+                              >
+                                {icon}{label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
                         {order.receiptImage && (
                           <div className="pt-2 border-t border-gray-200">
                             <p className="text-xs text-gray-500 mb-1.5 flex items-center gap-1">

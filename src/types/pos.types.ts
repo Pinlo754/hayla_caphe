@@ -9,6 +9,7 @@ export interface CartItem {
   combo?: string;
   note?: string;
   category?: string;
+  discountedTotal?: number; // line total after order discount (drinks only; 'Other' keeps full price)
 }
 
 export interface MenuItem {
@@ -28,6 +29,13 @@ export interface Discount {
   amount: number;
 }
 
+export interface CustomerInfo {
+  name: string;
+  phone: string;
+  address: string;
+  note?: string;
+}
+
 export interface Order {
   id: string;
   tableId: number;
@@ -37,6 +45,25 @@ export interface Order {
   status: 'pending' | 'completed' | 'Complete';
   paymentMethod?: PaymentMethod;
   receiptImage?: string;   // URL of transfer receipt photo (required for transfer)
+  createdAt: string;
+  updatedAt?: string;
+  // Online order fields
+  orderType?: 'dine-in' | 'online';
+  customerInfo?: CustomerInfo;
+  // Who created this order (logged-in employee)
+  staffId?: string;
+  staffName?: string;
+}
+
+// ── Employee accounts (login) ────────────────────────────────────
+
+export interface StaffAccount {
+  id: string;
+  username: string;
+  name: string;
+  passwordHash: string;
+  salt: string;
+  active: boolean;
   createdAt: string;
   updatedAt?: string;
 }
@@ -52,8 +79,65 @@ export interface Customer {
 }
 
 export type PaymentMethod = 'cash' | 'transfer';
-export type ActiveTab = 'tables' | 'menu' | 'orders' | 'dashboard';
+export type ActiveTab = 'tables' | 'menu' | 'orders' | 'checklist' | 'stats';
 export type DiscountType = 'percent' | 'fixed';
+
+// ── Task Checklist ────────────────────────────────────────────────
+
+export type TaskPriority = 'high' | 'medium' | 'low';
+export type TaskDay = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
+
+/** How a task repeats: every day, on chosen weekdays, on a day of the month, or every N days. */
+export type TaskRecurrence = 'daily' | 'weekly' | 'monthly' | 'interval';
+
+/**
+ * Display bucket for the checklist UI — mirrors how the café actually thinks
+ * about work: things every shift repeats regardless of who's on ('shift'),
+ * things anchored to a clock time in the day ('hourly'), and periodic
+ * maintenance/admin work on a day/week/month cycle ('periodic').
+ */
+export type TaskGroup = 'shift' | 'hourly' | 'periodic';
+
+export interface Task {
+  id: string;
+  title: string;
+  description?: string;
+  priority: TaskPriority;
+  group: TaskGroup;
+  scheduledTime: string;   // "HH:MM"
+  recurrence: TaskRecurrence;
+  days: TaskDay[];         // recurrence === 'weekly': which weekdays (empty = every day, legacy 'daily' meaning)
+  dayOfMonth?: number;     // recurrence === 'monthly': 1–31
+  intervalDays?: number;   // recurrence === 'interval': repeat every N days
+  anchorDate?: string;     // recurrence === 'interval': "YYYY-MM-DD" reference date for the cycle
+  requirePhoto: boolean;
+  active: boolean;
+  order: number;
+  createdAt: string;
+}
+
+export interface TaskLog {
+  id: string;              // `${YYYY-MM-DD}_${taskId}`
+  taskId: string;
+  date: string;            // "YYYY-MM-DD"
+  status: 'pending' | 'completed';
+  completedAt?: string;
+  completedBy?: string;    // deviceId
+  photoUrl?: string;
+  notifiedAt?: string;
+}
+
+export interface Shift {
+  id: string;
+  deviceId: string;
+  staffName: string;
+  date: string;            // "YYYY-MM-DD"
+  checkInAt: string;
+  checkInPhoto?: string;
+  checkOutAt?: string;
+  checkOutPhoto?: string;
+  active: boolean;
+}
 
 export interface ReceiptData {
   tableId: number;
