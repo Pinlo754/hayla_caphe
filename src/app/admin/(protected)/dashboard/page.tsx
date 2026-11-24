@@ -8,9 +8,16 @@ import { TrendingUp, ShoppingBag, Receipt, Clock } from 'lucide-react';
 export default function AdminDashboardPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    getOrders().then(setOrders).finally(() => setLoading(false));
+    getOrders()
+      .then(setOrders)
+      .catch((e) => {
+        console.error('getOrders failed', e);
+        setError('Không tải được đơn hàng. Kiểm tra kết nối hoặc quyền Firestore.');
+      })
+      .finally(() => setLoading(false));
   }, []);
 
   const completed = useMemo(
@@ -44,6 +51,8 @@ export default function AdminDashboardPage() {
         <div className="flex items-center justify-center py-20">
           <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
         </div>
+      ) : error ? (
+        <p className="text-center text-red-500 text-sm py-10">{error}</p>
       ) : (
         <>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">

@@ -1,5 +1,17 @@
 @import "tailwindcss";
 
+/* Tailwind v4 changed the default border color to currentColor (v3 used gray-200),
+   so bare `border` / `border-b` / `border-r` classes render as dark lines. Restore v3 look. */
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentColor);
+  }
+}
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
